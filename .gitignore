@@ -1,0 +1,53 @@
+# Binaries & build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go workspace & test artifacts
+vendor/
+*.test
+*.out
+coverage.html
+profile.pprof
+
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+credentials.json
+service-account-key.json
+*.token
+
+# Personal financial data files (Zero-Leak Protection)
+data/
+statements/
+imports/
+uploads/
+*.pdf
+*.ofx
+*.xlsx
+*.xls
+*.csv
+# Exceptions strictly for synthetic test fixtures
+!test/fixtures/*.csv
+!test/fixtures/*.ofx
+!test/fixtures/*.json
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Local database persistent volumes
+postgres-data/
+redis-data/
