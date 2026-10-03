@@ -36,6 +36,9 @@ linters-settings:
       - name: error-return
       - name: error-strings
       - name: error-naming
+      - name: increment-decrement
+      - name: var-naming
+      - name: receiver-naming
 
 issues:
   exclude-use-default: false
