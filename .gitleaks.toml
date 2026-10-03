@@ -1,0 +1,28 @@
+title = "IntelliFinance Security & DevSecOps Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "brazilian-cpf"
+description = "Brazilian Individual Taxpayer Registry (CPF) Number"
+regex = '''\b\d{3}\.\d{3}\.\d{3}-\d{2}\b'''
+keywords = ["cpf"]
+
+[[rules]]
+id = "brazilian-cnpj"
+description = "Brazilian Company Taxpayer Registry (CNPJ) Number"
+regex = '''\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b'''
+keywords = ["cnpj"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key (RSA, DSA, EC, OPENSSH, PGP)"
+regex = '''(?i)-----BEGIN[ A-Z0-9_-]*PRIVATE KEY-----'''
+keywords = ["private", "key"]
+
+[allowlist]
+description = "Global allowlist for documentation mock placeholders"
+paths = [
+    '''docs/.*''',
+]
