@@ -1,0 +1,1002 @@
+[
+  {
+    "id": "f6a81216-1963-4aa0-bb06-0cffd1eeba77",
+    "date": "2025-04-21T16:25:55.543856392Z",
+    "amount": "7611.2",
+    "description": "SALARIO MENSAL MULTINACIONAL",
+    "category": "Salário",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025042100001"
+  },
+  {
+    "id": "cbe0db0d-f453-4cd3-87cb-97050e3f53d2",
+    "date": "2025-10-25T16:59:17.743547645Z",
+    "amount": "-675.11",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102500002"
+  },
+  {
+    "id": "a7fe8ab2-f075-46fc-b03e-a643f049839f",
+    "date": "2025-06-10T08:40:14.062614096Z",
+    "amount": "-169.22",
+    "description": "CONDOMINIO RESIDENCIAL",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025061000003"
+  },
+  {
+    "id": "ca548402-5e99-47d2-a433-6096601c0ab7",
+    "date": "2025-02-24T21:31:29.943501099Z",
+    "amount": "-308.66",
+    "description": "UBER DO BRASIL",
+    "category": "Transporte",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025022400004"
+  },
+  {
+    "id": "c799cef0-1d62-4eaf-bb0c-92d45deb1afe",
+    "date": "2025-06-17T09:48:17.840270746Z",
+    "amount": "-547.09",
+    "description": "PAG*CLINICAELUMA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025061700005"
+  },
+  {
+    "id": "a5781f93-5adc-414d-aa59-7b2bc36416d6",
+    "date": "2025-05-07T11:27:13.842764867Z",
+    "amount": "-459.55",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025050700006"
+  },
+  {
+    "id": "eda07b13-20ef-46e9-b072-d23f9475c02c",
+    "date": "2025-12-04T18:24:54.860009216Z",
+    "amount": "-61.35",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025120400007"
+  },
+  {
+    "id": "a3c71776-580e-43bc-aa7a-f7f9f82f1e18",
+    "date": "2025-10-26T23:02:20.78896809Z",
+    "amount": "-565.11",
+    "description": "SABOR DO BRASIL RESTAURANTE",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102600008"
+  },
+  {
+    "id": "f9135192-0897-4247-aecd-be62cabc53a8",
+    "date": "2025-04-12T05:23:55.285674197Z",
+    "amount": "-303.48",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025041200009"
+  },
+  {
+    "id": "fed6d9de-2e74-4058-8124-9f1964b4e019",
+    "date": "2025-11-01T08:51:12.729910105Z",
+    "amount": "-741.16",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025110100010"
+  },
+  {
+    "id": "3750bd4b-5c3d-4eb6-8208-1f326a7c99b8",
+    "date": "2025-06-09T20:11:32.735054174Z",
+    "amount": "1896.62",
+    "description": "PIX RECEBIDO - CONSULTORIA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025060900011"
+  },
+  {
+    "id": "05348d63-88fe-4f9a-9b46-65e24865cde4",
+    "date": "2025-09-09T02:36:48.108523755Z",
+    "amount": "-102.43",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025090900012"
+  },
+  {
+    "id": "32da4b04-605e-4dbb-b539-dd711889d39e",
+    "date": "2025-12-20T20:53:25.831671743Z",
+    "amount": "-34.71",
+    "description": "CONDOMINIO RESIDENCIAL",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025122000013"
+  },
+  {
+    "id": "391425b4-eb6b-4bf4-aee7-1453b03ee95c",
+    "date": "2025-06-14T13:28:48.910038304Z",
+    "amount": "-723.05",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025061400014"
+  },
+  {
+    "id": "832bfc18-5e17-495d-8281-dfe419c85448",
+    "date": "2025-08-23T21:33:46.108316544Z",
+    "amount": "-216.88",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025082300015"
+  },
+  {
+    "id": "3eeb2d9e-e16e-4a7c-9ba7-c84eb579ab73",
+    "date": "2025-04-02T01:51:59.544653752Z",
+    "amount": "-260",
+    "description": "PADARIA REAL",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025040200016"
+  },
+  {
+    "id": "75186299-7e84-4e1b-94d1-28efab3e8419",
+    "date": "2025-11-11T03:50:40.696416629Z",
+    "amount": "-394.75",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025111100017"
+  },
+  {
+    "id": "7111ac8c-3a75-4ec5-bdea-850ca3a47f24",
+    "date": "2025-08-26T04:37:10.025336831Z",
+    "amount": "-693.44",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025082600018"
+  },
+  {
+    "id": "dea31f51-a273-41ae-b621-9e2dc484c02b",
+    "date": "2025-11-01T15:20:29.417821329Z",
+    "amount": "-185.55",
+    "description": "PAG*CLINICAELUMA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025110100019"
+  },
+  {
+    "id": "b4f6f36a-4f70-4433-9608-de018400ad1e",
+    "date": "2025-05-11T10:33:36.617101815Z",
+    "amount": "-470.44",
+    "description": "MERCADO LIVRE",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025051100020"
+  },
+  {
+    "id": "309139a1-ed15-4a50-8d6e-52942e60438b",
+    "date": "2025-09-25T04:27:58.033957798Z",
+    "amount": "5273.74",
+    "description": "SALARIO MENSAL MULTINACIONAL",
+    "category": "Salário",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025092500021"
+  },
+  {
+    "id": "83dd8160-01ab-4f22-a437-ed498c81be0d",
+    "date": "2025-01-05T07:19:53.456092627Z",
+    "amount": "-276.4",
+    "description": "RESTAURANTE MOCOTO",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025010500022"
+  },
+  {
+    "id": "6bce5e21-70a6-44d7-921f-af66e9926433",
+    "date": "2025-03-23T08:11:43.549965562Z",
+    "amount": "-799.21",
+    "description": "RESTAURANTE MOCOTO",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025032300023"
+  },
+  {
+    "id": "856546a9-2dc1-4960-a813-e3d5fd318a21",
+    "date": "2025-08-08T00:20:40.677668374Z",
+    "amount": "-366.12",
+    "description": "UBER DO BRASIL",
+    "category": "Transporte",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025080800024"
+  },
+  {
+    "id": "8530c141-ecba-4ebf-9ecd-57720e8d9bc9",
+    "date": "2025-05-01T07:39:43.063817702Z",
+    "amount": "-638.25",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025050100025"
+  },
+  {
+    "id": "ed73325b-8bd9-4baa-abb3-4f16c9c3063c",
+    "date": "2025-07-21T02:02:59.699632649Z",
+    "amount": "-104.35",
+    "description": "PADARIA REAL",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025072100026"
+  },
+  {
+    "id": "59254ed4-6dea-4f19-99f0-10c4c09d42f0",
+    "date": "2025-10-21T19:27:54.387930389Z",
+    "amount": "-474.49",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102100027"
+  },
+  {
+    "id": "c89d86be-ef1c-4305-8fcf-27ca89dd29ba",
+    "date": "2025-07-12T07:25:31.406022433Z",
+    "amount": "-117.8",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025071200028"
+  },
+  {
+    "id": "1f00072e-37b9-4755-a920-c76309cb65b8",
+    "date": "2025-11-06T02:58:30.788225543Z",
+    "amount": "-621.39",
+    "description": "PADARIA REAL",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025110600029"
+  },
+  {
+    "id": "d7e6028f-5f9d-4d73-ad40-c8c110bf9f92",
+    "date": "2025-06-28T16:04:00.080509727Z",
+    "amount": "-257.94",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025062800030"
+  },
+  {
+    "id": "37b56673-fcfa-4edb-aa76-1c511c3511ed",
+    "date": "2025-08-10T15:31:23.470613493Z",
+    "amount": "1715.75",
+    "description": "PIX RECEBIDO - CONSULTORIA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025081000031"
+  },
+  {
+    "id": "baf5b4e5-d630-4c35-af1c-14feafc6893c",
+    "date": "2025-08-08T02:27:10.782074255Z",
+    "amount": "-621.04",
+    "description": "PAG*CLINICAELUMA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025080800032"
+  },
+  {
+    "id": "aefb4538-6d6e-4a32-a96b-8c44a120fa84",
+    "date": "2025-09-23T13:34:00.254686612Z",
+    "amount": "-685.85",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025092300033"
+  },
+  {
+    "id": "c151ad0d-121e-447a-94a0-d0a989ecae1e",
+    "date": "2025-06-13T14:42:12.627701891Z",
+    "amount": "-573.32",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025061300034"
+  },
+  {
+    "id": "b62ead92-f28c-4ec8-8d1d-47afab2bc5ad",
+    "date": "2025-01-07T15:21:20.512124606Z",
+    "amount": "-364.91",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025010700035"
+  },
+  {
+    "id": "df394c0a-bac1-4bee-89a0-0d6516fb7329",
+    "date": "2025-09-10T14:04:50.955133938Z",
+    "amount": "-562.19",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025091000036"
+  },
+  {
+    "id": "3b71fc9c-b331-4c36-84db-9d7817470a3b",
+    "date": "2025-11-16T01:43:40.020894437Z",
+    "amount": "-81.4",
+    "description": "RESTAURANTE MOCOTO",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025111600037"
+  },
+  {
+    "id": "f2712cc7-80f1-4da3-b557-697c18bb1ac0",
+    "date": "2025-09-02T15:41:32.688734125Z",
+    "amount": "-229.74",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025090200038"
+  },
+  {
+    "id": "e94392b8-ed19-43bc-976c-c5ab5318bb1c",
+    "date": "2025-09-28T03:41:57.241585488Z",
+    "amount": "-302.86",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025092800039"
+  },
+  {
+    "id": "546a491e-a72b-41b1-b5ba-415099af24bd",
+    "date": "2025-05-12T20:36:05.905021779Z",
+    "amount": "-159.32",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025051200040"
+  },
+  {
+    "id": "280ec8b7-0039-49fa-917f-86a31f1fbaf2",
+    "date": "2025-05-31T14:58:58.835543503Z",
+    "amount": "7277.47",
+    "description": "SALARIO MENSAL MULTINACIONAL",
+    "category": "Salário",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025053100041"
+  },
+  {
+    "id": "7015495f-c947-4cc6-a6ba-31441f5cba58",
+    "date": "2025-02-28T19:02:45.298761526Z",
+    "amount": "-144.64",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025022800042"
+  },
+  {
+    "id": "71e7cf2e-cc97-4fea-bb81-20b8f04afc8d",
+    "date": "2025-10-18T23:12:39.204160255Z",
+    "amount": "-93.52",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025101800043"
+  },
+  {
+    "id": "da5f4761-8c48-438d-9aa5-ea4e1f6e8cc1",
+    "date": "2025-10-16T16:29:56.56186692Z",
+    "amount": "-19.9",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025101600044"
+  },
+  {
+    "id": "63971cf4-36f0-451d-9bf4-751204f3661f",
+    "date": "2025-12-17T08:43:32.580203883Z",
+    "amount": "-756.92",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025121700045"
+  },
+  {
+    "id": "aadf5827-51bc-42a7-b32e-317aa550c1e7",
+    "date": "2025-02-05T00:54:37.43600293Z",
+    "amount": "-446.67",
+    "description": "POSTO IPIRANGA",
+    "category": "Transporte",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025020500046"
+  },
+  {
+    "id": "ac5a166c-01c1-4031-bb93-f076d4c832fb",
+    "date": "2025-05-08T09:05:51.332401191Z",
+    "amount": "-73.28",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025050800047"
+  },
+  {
+    "id": "160f637b-4dca-4fb3-896f-d69a4a43dd32",
+    "date": "2025-02-21T18:07:00.374479063Z",
+    "amount": "-719.35",
+    "description": "UBER DO BRASIL",
+    "category": "Transporte",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025022100048"
+  },
+  {
+    "id": "024ba3de-1dd9-4745-90e0-5dcdc332242e",
+    "date": "2025-11-17T22:40:56.47866009Z",
+    "amount": "-300.66",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025111700049"
+  },
+  {
+    "id": "06664abd-2605-42a5-8407-cafd416bb21d",
+    "date": "2025-05-28T02:43:43.201548092Z",
+    "amount": "-500.71",
+    "description": "SABOR DO BRASIL RESTAURANTE",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025052800050"
+  },
+  {
+    "id": "592c35c8-a661-4cdc-8ded-88dfb904e1f5",
+    "date": "2025-09-18T13:47:44.012818246Z",
+    "amount": "4293.68",
+    "description": "PIX RECEBIDO - CONSULTORIA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025091800051"
+  },
+  {
+    "id": "38674299-1f7c-45a0-b45f-24b612c7ca00",
+    "date": "2025-10-21T06:50:15.883478263Z",
+    "amount": "-189.13",
+    "description": "RESTAURANTE MOCOTO",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102100052"
+  },
+  {
+    "id": "70f2af93-72a5-46ff-98f9-c22b9ba436dc",
+    "date": "2025-06-27T02:01:04.768034469Z",
+    "amount": "-494.93",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025062700053"
+  },
+  {
+    "id": "4600d937-0cd6-43e0-b414-b4f3fda62137",
+    "date": "2025-09-21T11:49:52.762344553Z",
+    "amount": "-575.97",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025092100054"
+  },
+  {
+    "id": "d9e02baf-6ffa-43d0-a2cc-71fae31659e0",
+    "date": "2025-10-21T15:26:37.393644471Z",
+    "amount": "-497.98",
+    "description": "SPOTIFY RECIFE",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102100055"
+  },
+  {
+    "id": "c3b138f2-78ca-41c5-9c9e-ee5d5b70e685",
+    "date": "2025-12-19T07:46:18.770035471Z",
+    "amount": "-425.08",
+    "description": "POSTO IPIRANGA",
+    "category": "Transporte",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025121900056"
+  },
+  {
+    "id": "3dd19479-1afa-42d0-951d-0535eb9be3f7",
+    "date": "2025-10-16T21:01:28.925853597Z",
+    "amount": "-540.01",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025101600057"
+  },
+  {
+    "id": "94e63833-3075-4336-b848-9f6a852e289d",
+    "date": "2025-10-24T21:46:15.205999579Z",
+    "amount": "-452.28",
+    "description": "CONDOMINIO RESIDENCIAL",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102400058"
+  },
+  {
+    "id": "88368981-8846-459e-8939-1f9c142f91ce",
+    "date": "2025-07-06T03:23:06.873114408Z",
+    "amount": "-409.86",
+    "description": "RESTAURANTE MOCOTO",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025070600059"
+  },
+  {
+    "id": "72489746-7cb7-4ecf-8ee5-c34478600c20",
+    "date": "2025-12-14T08:22:24.333469841Z",
+    "amount": "-374.52",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025121400060"
+  },
+  {
+    "id": "cc4595fa-9ae7-444a-b699-f2ece79596ea",
+    "date": "2025-10-27T15:22:51.22183519Z",
+    "amount": "10114",
+    "description": "SALARIO MENSAL MULTINACIONAL",
+    "category": "Salário",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102700061"
+  },
+  {
+    "id": "bc0aabc6-43c3-47b8-a97e-932154749baa",
+    "date": "2025-02-27T01:07:56.419376193Z",
+    "amount": "-638.12",
+    "description": "MERCADO LIVRE",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025022700062"
+  },
+  {
+    "id": "68144c9c-5da4-4ece-9a28-b25bc77b5ee7",
+    "date": "2025-10-31T06:18:14.504680304Z",
+    "amount": "-237.05",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025103100063"
+  },
+  {
+    "id": "03163545-61f7-4bf7-9fd3-19ef8c4c51e2",
+    "date": "2025-07-27T23:37:50.286252912Z",
+    "amount": "-356.26",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025072700064"
+  },
+  {
+    "id": "4682b81b-49c6-4c34-9c24-9ae01d1a5b81",
+    "date": "2025-10-23T07:24:41.258750007Z",
+    "amount": "-741.32",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025102300065"
+  },
+  {
+    "id": "44a0734e-5c3f-419b-b2a0-2a95583af111",
+    "date": "2025-06-28T22:18:38.753366777Z",
+    "amount": "-803.11",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025062800066"
+  },
+  {
+    "id": "e6020209-6fda-4d33-9dc7-32283c08fa2c",
+    "date": "2025-09-07T10:44:53.887134473Z",
+    "amount": "-672.05",
+    "description": "SPOTIFY RECIFE",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025090700067"
+  },
+  {
+    "id": "fbc7ef0b-c53d-4b60-8429-5de8556a829e",
+    "date": "2025-04-01T00:07:59.158826328Z",
+    "amount": "-439.74",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025040100068"
+  },
+  {
+    "id": "51072fb7-e522-41c1-ac02-ca51aa31ba71",
+    "date": "2025-03-26T20:04:51.645763388Z",
+    "amount": "-515.48",
+    "description": "PAG*CLINICAELUMA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025032600069"
+  },
+  {
+    "id": "d4358905-8f8d-4e86-a692-4fa7e2f5efdb",
+    "date": "2025-12-27T05:45:27.07250245Z",
+    "amount": "-362.01",
+    "description": "SPOTIFY RECIFE",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025122700070"
+  },
+  {
+    "id": "2eb121c1-2995-45f2-99cf-ca2d7a46c311",
+    "date": "2025-10-06T06:51:16.651443818Z",
+    "amount": "3716.29",
+    "description": "PIX RECEBIDO - CONSULTORIA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025100600071"
+  },
+  {
+    "id": "852fb509-c2db-4836-867f-6e3abd72bc9b",
+    "date": "2025-04-13T23:14:09.995775513Z",
+    "amount": "-363.76",
+    "description": "PAG*CLINICAELUMA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025041300072"
+  },
+  {
+    "id": "a0e2c5bc-2ab7-474f-a0f2-673df7f1a0b1",
+    "date": "2025-08-13T06:52:13.588023524Z",
+    "amount": "-39.5",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025081300073"
+  },
+  {
+    "id": "c513e144-e943-4b65-84fc-42eb59221758",
+    "date": "2025-05-01T02:14:58.380969091Z",
+    "amount": "-51.65",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025050100074"
+  },
+  {
+    "id": "9ad16947-602c-41b3-9864-79bec758d51d",
+    "date": "2025-06-17T10:54:04.49549526Z",
+    "amount": "-716.23",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025061700075"
+  },
+  {
+    "id": "367915da-a800-4498-a141-f184554d60f6",
+    "date": "2025-04-28T23:43:31.933514962Z",
+    "amount": "-701.81",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025042800076"
+  },
+  {
+    "id": "56cff6eb-1982-4f94-a7f1-1d0a7c30a486",
+    "date": "2025-04-22T06:16:55.778329896Z",
+    "amount": "-497.97",
+    "description": "PADARIA REAL",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025042200077"
+  },
+  {
+    "id": "3b9bab50-2992-4dc7-8c26-461f46ca0237",
+    "date": "2025-09-02T19:30:11.162544159Z",
+    "amount": "-599.47",
+    "description": "AMAZON BRASIL",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025090200078"
+  },
+  {
+    "id": "f0e4ff0a-6fb7-4fbd-bc26-85c66886d711",
+    "date": "2025-06-06T08:13:31.129900358Z",
+    "amount": "-633.43",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025060600079"
+  },
+  {
+    "id": "571eb0b7-9594-4328-8f87-8c15ef1b4178",
+    "date": "2025-03-22T00:10:29.348951654Z",
+    "amount": "-512.49",
+    "description": "DROGARIA SAO PAULO",
+    "category": "Saúde",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025032200080"
+  },
+  {
+    "id": "2fc2075e-2dda-4fd9-aa23-5e16c1062442",
+    "date": "2025-07-06T00:38:37.378918845Z",
+    "amount": "10862.62",
+    "description": "SALARIO MENSAL MULTINACIONAL",
+    "category": "Salário",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025070600081"
+  },
+  {
+    "id": "21a798da-75b3-4f91-a31d-05c392ef4c2c",
+    "date": "2025-05-14T03:17:13.191262563Z",
+    "amount": "-798.99",
+    "description": "MERCADO LIVRE",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025051400082"
+  },
+  {
+    "id": "70be9321-3b69-4682-94fb-3e4409a86fc9",
+    "date": "2025-01-22T12:31:50.926621733Z",
+    "amount": "-800.03",
+    "description": "MERCADO LIVRE",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025012200083"
+  },
+  {
+    "id": "faf65444-c5df-4476-8b4c-be4a0f32d9ef",
+    "date": "2025-12-23T01:35:45.966404976Z",
+    "amount": "-582.15",
+    "description": "SABOR DO BRASIL RESTAURANTE",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025122300084"
+  },
+  {
+    "id": "b6455e78-03b8-4e9f-9857-d2e0778c81b9",
+    "date": "2025-12-04T22:28:28.729633482Z",
+    "amount": "-116.2",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025120400085"
+  },
+  {
+    "id": "af9cc8a5-afb6-4f96-97f4-06a1b7bf1541",
+    "date": "2025-11-06T09:22:33.359143709Z",
+    "amount": "-34.37",
+    "description": "CONDOMINIO RESIDENCIAL",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025110600086"
+  },
+  {
+    "id": "2956eee5-491b-49cc-ac19-a086c09f2c57",
+    "date": "2025-03-18T08:04:40.435857179Z",
+    "amount": "-443.25",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025031800087"
+  },
+  {
+    "id": "eb822ddb-d7d6-47f9-ba1c-6672480f86fa",
+    "date": "2025-09-18T07:58:12.011198955Z",
+    "amount": "-590.8",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025091800088"
+  },
+  {
+    "id": "e92c113c-d253-43df-b599-b03a70fcd8d6",
+    "date": "2025-06-14T07:43:10.07675161Z",
+    "amount": "-691.04",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025061400089"
+  },
+  {
+    "id": "d757a5ee-2af7-491e-a2ee-3f6f043f62d8",
+    "date": "2025-02-25T01:37:47.972748647Z",
+    "amount": "-315.26",
+    "description": "CONDOMINIO RESIDENCIAL",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025022500090"
+  },
+  {
+    "id": "dcb20248-6ca0-4b82-999d-7c052c7e23c9",
+    "date": "2025-04-13T06:24:41.871645528Z",
+    "amount": "2361.24",
+    "description": "PIX RECEBIDO - CONSULTORIA",
+    "category": "Receita Comercial",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025041300091"
+  },
+  {
+    "id": "9e99ebd9-ddc6-4550-b91a-b536947244a8",
+    "date": "2025-07-27T19:26:26.687531872Z",
+    "amount": "-252.36",
+    "description": "NETFLIX BRASIL",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025072700092"
+  },
+  {
+    "id": "0eb73666-c45d-42d6-a2ad-70043912d61e",
+    "date": "2025-10-09T21:22:23.87114579Z",
+    "amount": "-133.36",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025100900093"
+  },
+  {
+    "id": "a0c28fd0-e28f-49d4-8ae6-cad97db34cb0",
+    "date": "2025-05-05T18:46:53.696533033Z",
+    "amount": "-708.52",
+    "description": "SPOTIFY RECIFE",
+    "category": "Assinaturas",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025050500094"
+  },
+  {
+    "id": "23735b13-0db0-4c80-97db-6971a6c7189a",
+    "date": "2025-10-12T19:47:33.774829285Z",
+    "amount": "-144.94",
+    "description": "CONDOMINIO RESIDENCIAL",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025101200095"
+  },
+  {
+    "id": "4aabd4c6-945a-439a-a30b-534327b9527d",
+    "date": "2025-03-08T06:11:25.062310504Z",
+    "amount": "-476.28",
+    "description": "MERCADO LIVRE",
+    "category": "Lazer",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025030800096"
+  },
+  {
+    "id": "0d6c28be-3691-4e82-ab75-9298ceec0772",
+    "date": "2025-04-13T06:56:36.541496146Z",
+    "amount": "-719.62",
+    "description": "SUPERMERCADO PAO DE ACUCAR",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025041300097"
+  },
+  {
+    "id": "566a71d4-11ba-4466-ac8e-81768db77045",
+    "date": "2025-08-23T01:18:20.308987977Z",
+    "amount": "-230.01",
+    "description": "ENEL DISTRIBUICAO SP",
+    "category": "Moradia",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025082300098"
+  },
+  {
+    "id": "d70fa64a-0b91-4905-b732-bf6d87afd9a9",
+    "date": "2025-10-13T07:22:32.850316023Z",
+    "amount": "-377.12",
+    "description": "CLARO BRASIL SERVICOS",
+    "category": "Serviços",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025101300099"
+  },
+  {
+    "id": "1da798d3-2661-4054-ac65-87c76d741d5d",
+    "date": "2025-11-29T07:57:06.590809704Z",
+    "amount": "-608.37",
+    "description": "RESTAURANTE MOCOTO",
+    "category": "Alimentação",
+    "account": "033-12345-6",
+    "source": "ITAU",
+    "fitid": "2025112900100"
+  }
+]
