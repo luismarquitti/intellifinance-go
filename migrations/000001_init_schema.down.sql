@@ -5,21 +5,7 @@
 -- indexes, tables, types, and extensions.
 -- ============================================================================
 
--- 1. APPLICATION ROLE & GRANTS
-DO $$
-BEGIN
-    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'intellifinance_app') THEN
-        REVOKE EXECUTE ON FUNCTION resolve_open_finance_tenant(VARCHAR) FROM intellifinance_app;
-        REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM intellifinance_app;
-        REVOKE SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM intellifinance_app;
-        REVOKE USAGE ON SCHEMA public FROM intellifinance_app;
-        DROP OWNED BY intellifinance_app;
-        DROP ROLE intellifinance_app;
-    END IF;
-END
-$$;
-
--- 2. ROW-LEVEL SECURITY (RLS) POLICIES
+-- 1. ROW-LEVEL SECURITY (RLS) POLICIES
 DROP POLICY IF EXISTS rls_audit_logs_insert_policy ON audit_logs;
 DROP POLICY IF EXISTS rls_audit_logs_select_policy ON audit_logs;
 DROP POLICY IF EXISTS rls_open_finance_items_tenant_isolation ON open_finance_items;
@@ -124,3 +110,20 @@ DROP TYPE IF EXISTS tenant_type CASCADE;
 -- 9. EXTENSIONS
 DROP EXTENSION IF EXISTS "pgcrypto";
 DROP EXTENSION IF EXISTS "uuid-ossp";
+
+-- 10. APPLICATION ROLE (Cluster-wide cleanup with dependency check)
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'intellifinance_app') THEN
+        BEGIN
+            DROP OWNED BY intellifinance_app;
+            DROP ROLE intellifinance_app;
+        EXCEPTION
+            WHEN dependent_objects_still_exist OR undefined_object THEN
+                -- Safe fallback if role is still referenced in other databases
+                NULL;
+        END;
+    END IF;
+END
+$$;
+
