@@ -56,7 +56,8 @@ INSERT INTO transactions (
     updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
-) RETURNING id, tenant_id, account_id, category_id, created_by_user_id, transacted_at, date, amount, description, clean_description, type, status, visibility, source, external_id, sequence_index, fingerprint, is_ai_categorized, ai_confidence, ai_model_version, is_manually_verified, transfer_peer_transaction_id, notes, metadata, created_at, updated_at
+) ON CONFLICT (tenant_id, fingerprint) DO NOTHING
+RETURNING id, tenant_id, account_id, category_id, created_by_user_id, transacted_at, date, amount, description, clean_description, type, status, visibility, source, external_id, sequence_index, fingerprint, is_ai_categorized, ai_confidence, ai_model_version, is_manually_verified, transfer_peer_transaction_id, notes, metadata, created_at, updated_at
 `
 
 type CreateTransactionParams struct {
@@ -240,12 +241,12 @@ WHERE tenant_id = $1 AND fingerprint = ANY($2::text[])
 `
 
 type FindExistingFingerprintsParams struct {
-	TenantID uuid.UUID `json:"tenant_id"`
-	Column2  []string  `json:"column_2"`
+	TenantID     uuid.UUID `json:"tenant_id"`
+	Fingerprints []string  `json:"fingerprints"`
 }
 
 func (q *Queries) FindExistingFingerprints(ctx context.Context, arg FindExistingFingerprintsParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, findExistingFingerprints, arg.TenantID, arg.Column2)
+	rows, err := q.db.Query(ctx, findExistingFingerprints, arg.TenantID, arg.Fingerprints)
 	if err != nil {
 		return nil, err
 	}
@@ -518,4 +519,98 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertTransaction = `-- name: UpsertTransaction :exec
+INSERT INTO transactions (
+    id,
+    tenant_id,
+    account_id,
+    category_id,
+    created_by_user_id,
+    transacted_at,
+    date,
+    amount,
+    description,
+    clean_description,
+    type,
+    status,
+    visibility,
+    source,
+    external_id,
+    sequence_index,
+    fingerprint,
+    is_ai_categorized,
+    ai_confidence,
+    ai_model_version,
+    is_manually_verified,
+    transfer_peer_transaction_id,
+    notes,
+    metadata,
+    created_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+) ON CONFLICT (tenant_id, fingerprint) DO NOTHING
+`
+
+type UpsertTransactionParams struct {
+	ID                        uuid.UUID          `json:"id"`
+	TenantID                  uuid.UUID          `json:"tenant_id"`
+	AccountID                 uuid.UUID          `json:"account_id"`
+	CategoryID                *uuid.UUID         `json:"category_id"`
+	CreatedByUserID           *uuid.UUID         `json:"created_by_user_id"`
+	TransactedAt              pgtype.Timestamptz `json:"transacted_at"`
+	Date                      pgtype.Date        `json:"date"`
+	Amount                    decimal.Decimal    `json:"amount"`
+	Description               string             `json:"description"`
+	CleanDescription          string             `json:"clean_description"`
+	Type                      TransactionType    `json:"type"`
+	Status                    TransactionStatus  `json:"status"`
+	Visibility                VisibilityType     `json:"visibility"`
+	Source                    SourceType         `json:"source"`
+	ExternalID                *string            `json:"external_id"`
+	SequenceIndex             int32              `json:"sequence_index"`
+	Fingerprint               string             `json:"fingerprint"`
+	IsAiCategorized           bool               `json:"is_ai_categorized"`
+	AiConfidence              *decimal.Decimal   `json:"ai_confidence"`
+	AiModelVersion            *string            `json:"ai_model_version"`
+	IsManuallyVerified        bool               `json:"is_manually_verified"`
+	TransferPeerTransactionID *uuid.UUID         `json:"transfer_peer_transaction_id"`
+	Notes                     *string            `json:"notes"`
+	Metadata                  json.RawMessage    `json:"metadata"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpsertTransaction(ctx context.Context, arg UpsertTransactionParams) error {
+	_, err := q.db.Exec(ctx, upsertTransaction,
+		arg.ID,
+		arg.TenantID,
+		arg.AccountID,
+		arg.CategoryID,
+		arg.CreatedByUserID,
+		arg.TransactedAt,
+		arg.Date,
+		arg.Amount,
+		arg.Description,
+		arg.CleanDescription,
+		arg.Type,
+		arg.Status,
+		arg.Visibility,
+		arg.Source,
+		arg.ExternalID,
+		arg.SequenceIndex,
+		arg.Fingerprint,
+		arg.IsAiCategorized,
+		arg.AiConfidence,
+		arg.AiModelVersion,
+		arg.IsManuallyVerified,
+		arg.TransferPeerTransactionID,
+		arg.Notes,
+		arg.Metadata,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
 }

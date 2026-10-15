@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata" // embed timezone database for hermetic America/Sao_Paulo resolution
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -31,8 +32,74 @@ func CleanDescription(raw string) string {
 	return strings.TrimSpace(str)
 }
 
+// BrazilLocation represents the official Brazilian timezone (America/Sao_Paulo).
+var BrazilLocation = func() *time.Location {
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		return time.FixedZone("BRT", -3*3600)
+	}
+	return loc
+}()
+
+// StandardizeDateToBrazil formats a date into YYYY-MM-DD anchored to Brazil official time (America/Sao_Paulo).
+// It ensures that timestamps representing the same instant across timezones produce identical date strings,
+// while preserving date-only values (midnight UTC or local).
+func StandardizeDateToBrazil(date time.Time) string {
+	if date.IsZero() {
+		return ""
+	}
+	// If the time has no hour/min/sec/nsec component, it represents a pure calendar date
+	if date.Hour() == 0 && date.Minute() == 0 && date.Second() == 0 && date.Nanosecond() == 0 {
+		return fmt.Sprintf("%04d-%02d-%02d", date.Year(), date.Month(), date.Day())
+	}
+	return date.In(BrazilLocation).Format("2006-01-02")
+}
+
+// GenerateTransactionFingerprint calculates a deterministic SHA-256 idempotency fingerprint for a transaction.
+// Formula: SHA256(tenant_id | account_id | date(YYYY-MM-DD) | amount(cents) | clean_description | external_id | sequence_index)
+// Fields are separated by '|' to prevent boundary-shifting collisions.
+// The calculation is immune to timezone variations and whitespace variations.
+func GenerateTransactionFingerprint(
+	tenantID, accountID uuid.UUID,
+	date time.Time,
+	amount decimal.Decimal,
+	cleanDescription string,
+	externalID string,
+	sequenceIndex int,
+) string {
+	// 1. Timezone standardization: Brazil Official Time (America/Sao_Paulo)
+	dateStr := StandardizeDateToBrazil(date)
+
+	// 2. Exact integer cents string (e.g. -154.30 -> "-15430", 45.00 -> "4500")
+	amountCents := amount.Mul(decimal.NewFromInt(100)).IntPart()
+	amountCentsStr := strconv.FormatInt(amountCents, 10)
+
+	// 3. Clean uppercase description with normalized whitespace
+	descStr := CleanDescription(cleanDescription)
+
+	// 4. External ID trimmed of whitespace
+	extIDStr := strings.TrimSpace(externalID)
+
+	// 5. Sequence index formatted as integer string
+	seqStr := strconv.Itoa(sequenceIndex)
+
+	// Canonical payload: tenant_id|account_id|YYYY-MM-DD|amount_cents|clean_desc|ext_id|sequence_index
+	payload := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s",
+		tenantID.String(),
+		accountID.String(),
+		dateStr,
+		amountCentsStr,
+		descStr,
+		extIDStr,
+		seqStr,
+	)
+
+	hash := sha256.Sum256([]byte(payload))
+	return hex.EncodeToString(hash[:])
+}
+
 // ComputeFingerprint calculates a deterministic SHA-256 idempotency fingerprint for a transaction.
-// Formula: SHA256(tenant_id | account_id | date(YYYY-MM-DD) | amount(cents) | normalized_description | sequence_index)
+// Deprecated: use GenerateTransactionFingerprint instead.
 func ComputeFingerprint(
 	tenantID, accountID uuid.UUID,
 	date time.Time,
@@ -40,21 +107,7 @@ func ComputeFingerprint(
 	cleanDesc string,
 	sequenceIndex int,
 ) string {
-	dateStr := date.Format("2006-01-02")
-	cents := amount.Mul(decimal.NewFromInt(100)).IntPart()
-	centsStr := strconv.FormatInt(cents, 10)
-
-	raw := fmt.Sprintf("%s|%s|%s|%s|%s|%d",
-		tenantID.String(),
-		accountID.String(),
-		dateStr,
-		centsStr,
-		cleanDesc,
-		sequenceIndex,
-	)
-
-	hash := sha256.Sum256([]byte(raw))
-	return hex.EncodeToString(hash[:])
+	return GenerateTransactionFingerprint(tenantID, accountID, date, amount, cleanDesc, "", sequenceIndex)
 }
 
 // Transaction represents a financial journal entry with deterministic deduplication and audit metadata.
@@ -110,14 +163,14 @@ type NewTransactionParams struct {
 // NewTransaction constructs, normalizes, and validates a new financial Transaction.
 func NewTransaction(params NewTransactionParams) (*Transaction, error) {
 	if params.TransactedAt.IsZero() {
-		params.TransactedAt = time.Now().UTC()
+		params.TransactedAt = time.Now().In(BrazilLocation)
 	}
 	if params.Date.IsZero() {
 		params.Date = params.TransactedAt
 	}
-	// Truncate Date to day boundary (YYYY-MM-DD)
-	y, m, d := params.Date.Date()
-	dateOnly := time.Date(y, m, d, 0, 0, 0, 0, params.Date.Location())
+
+	dateStr := StandardizeDateToBrazil(params.Date)
+	parsedDate, _ := time.ParseInLocation("2006-01-02", dateStr, BrazilLocation)
 
 	if strings.TrimSpace(string(params.Status)) == "" {
 		params.Status = TransactionStatusCompleted
@@ -130,12 +183,13 @@ func NewTransaction(params NewTransactionParams) (*Transaction, error) {
 	}
 
 	cleanDesc := CleanDescription(params.Description)
-	fingerprint := ComputeFingerprint(
+	fingerprint := GenerateTransactionFingerprint(
 		params.TenantID,
 		params.AccountID,
-		dateOnly,
+		parsedDate,
 		params.Amount,
 		cleanDesc,
+		params.ExternalID,
 		params.SequenceIndex,
 	)
 
@@ -152,7 +206,7 @@ func NewTransaction(params NewTransactionParams) (*Transaction, error) {
 		CategoryID:       params.CategoryID,
 		CreatedByUserID:  params.CreatedByUserID,
 		TransactedAt:     params.TransactedAt,
-		Date:             dateOnly,
+		Date:             parsedDate,
 		Amount:           params.Amount,
 		Description:      strings.TrimSpace(params.Description),
 		CleanDescription: cleanDesc,

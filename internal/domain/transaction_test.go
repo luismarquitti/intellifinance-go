@@ -96,6 +96,134 @@ func TestComputeFingerprint(t *testing.T) {
 	}
 }
 
+func TestGenerateTransactionFingerprint_DeterminismAndSensitivity(t *testing.T) {
+	tenantID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	accountID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+	date := time.Date(2026, 9, 24, 15, 30, 0, 0, time.UTC)
+	amount := decimal.NewFromFloat(-154.30)
+	cleanDesc := "PAO DE ACUCAR"
+	extID := "FITID-987654"
+	seq := 0
+
+	fp1 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, cleanDesc, extID, seq)
+	fp2 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, cleanDesc, extID, seq)
+
+	if fp1 != fp2 {
+		t.Errorf("expected deterministic fingerprints, got %s and %s", fp1, fp2)
+	}
+	if len(fp1) != 64 {
+		t.Errorf("expected 64-character sha256 hex string, got len %d (%s)", len(fp1), fp1)
+	}
+
+	// Sensitivity checks
+	otherTenant := uuid.MustParse("99999999-bbbb-cccc-dddd-eeeeeeeeeeee")
+	if fp1 == domain.GenerateTransactionFingerprint(otherTenant, accountID, date, amount, cleanDesc, extID, seq) {
+		t.Error("fingerprint should change when tenant changes")
+	}
+
+	otherAccount := uuid.MustParse("22222222-2222-3333-4444-555555555555")
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, otherAccount, date, amount, cleanDesc, extID, seq) {
+		t.Error("fingerprint should change when account changes")
+	}
+
+	diffDate := time.Date(2026, 9, 25, 15, 30, 0, 0, time.UTC)
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, accountID, diffDate, amount, cleanDesc, extID, seq) {
+		t.Error("fingerprint should change when date changes")
+	}
+
+	diffAmount := decimal.NewFromFloat(-154.31)
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, accountID, date, diffAmount, cleanDesc, extID, seq) {
+		t.Error("fingerprint should change when amount changes")
+	}
+
+	diffDesc := "EXTRA SUPERMERCADOS"
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, diffDesc, extID, seq) {
+		t.Error("fingerprint should change when description changes")
+	}
+
+	diffExtID := "FITID-000000"
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, cleanDesc, diffExtID, seq) {
+		t.Error("fingerprint should change when externalID changes")
+	}
+
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, cleanDesc, "", seq) {
+		t.Error("fingerprint should change when externalID is omitted")
+	}
+
+	if fp1 == domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, cleanDesc, extID, 1) {
+		t.Error("fingerprint should change when sequence index changes")
+	}
+}
+
+func TestGenerateTransactionFingerprint_TimezoneImmunity(t *testing.T) {
+	tenantID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	accountID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+	amount := decimal.NewFromFloat(-50.00)
+	cleanDesc := "UBER TRIP"
+	extID := "UBER-123"
+	seq := 0
+
+	// 1. Same physical instant (22:30 in Brazil == 01:30 UTC next day)
+	// Both must evaluate to 2026-10-14 in Brazil official time
+	tBRT := time.Date(2026, 10, 14, 22, 30, 0, 0, domain.BrazilLocation)
+	tUTC := tBRT.UTC() // 2026-10-15 01:30:00 UTC
+
+	fpBRT := domain.GenerateTransactionFingerprint(tenantID, accountID, tBRT, amount, cleanDesc, extID, seq)
+	fpUTC := domain.GenerateTransactionFingerprint(tenantID, accountID, tUTC, amount, cleanDesc, extID, seq)
+
+	if fpBRT != fpUTC {
+		t.Errorf("timezone immunity failure: fpBRT (%s) != fpUTC (%s) for same instant", fpBRT, fpUTC)
+	}
+
+	// 2. Pure calendar date (midnight UTC vs midnight Brazil time)
+	dateOnlyUTC := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+	dateOnlyBRT := time.Date(2026, 10, 14, 0, 0, 0, 0, domain.BrazilLocation)
+
+	fpDateUTC := domain.GenerateTransactionFingerprint(tenantID, accountID, dateOnlyUTC, amount, cleanDesc, extID, seq)
+	fpDateBRT := domain.GenerateTransactionFingerprint(tenantID, accountID, dateOnlyBRT, amount, cleanDesc, extID, seq)
+
+	if fpDateUTC != fpDateBRT {
+		t.Errorf("calendar date timezone immunity failure: fpDateUTC (%s) != fpDateBRT (%s)", fpDateUTC, fpDateBRT)
+	}
+
+	// 3. Foreign timezone (e.g., Tokyo UTC+9)
+	tokyoLoc := time.FixedZone("JST", 9*3600)
+	tTokyo := tBRT.In(tokyoLoc)
+	fpTokyo := domain.GenerateTransactionFingerprint(tenantID, accountID, tTokyo, amount, cleanDesc, extID, seq)
+
+	if fpTokyo != fpBRT {
+		t.Errorf("Tokyo timezone immunity failure: fpTokyo (%s) != fpBRT (%s)", fpTokyo, fpBRT)
+	}
+}
+
+func TestGenerateTransactionFingerprint_WhitespaceImmunity(t *testing.T) {
+	tenantID := uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+	accountID := uuid.MustParse("11111111-2222-3333-4444-555555555555")
+	date := time.Date(2026, 9, 24, 12, 0, 0, 0, domain.BrazilLocation)
+	amount := decimal.NewFromFloat(-100.00)
+	seq := 0
+
+	// Description with different whitespace
+	fp1 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, "POSTO IPIRANGA", "FITID-1", seq)
+	fp2 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, "  POSTO    IPIRANGA  ", "FITID-1", seq)
+	fp3 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, "posto ipiranga", "FITID-1", seq)
+
+	if fp1 != fp2 {
+		t.Errorf("whitespace immunity failure: fp1 (%s) != fp2 (%s)", fp1, fp2)
+	}
+	if fp1 != fp3 {
+		t.Errorf("case immunity failure: fp1 (%s) != fp3 (%s)", fp1, fp3)
+	}
+
+	// External ID whitespace trimming
+	fpExt1 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, "POSTO IPIRANGA", "FITID-1", seq)
+	fpExt2 := domain.GenerateTransactionFingerprint(tenantID, accountID, date, amount, "POSTO IPIRANGA", "  FITID-1  ", seq)
+
+	if fpExt1 != fpExt2 {
+		t.Errorf("external ID whitespace immunity failure: fpExt1 (%s) != fpExt2 (%s)", fpExt1, fpExt2)
+	}
+}
+
 func TestNewTransaction_Success(t *testing.T) {
 	tenantID := uuid.New()
 	accountID := uuid.New()

@@ -83,3 +83,16 @@ func WithTenantTx(
 
 	return nil
 }
+
+type txContextKey struct{}
+
+// ContextWithTx injects an active pgx.Tx into context.Context.
+func ContextWithTx(ctx context.Context, tx pgx.Tx) context.Context {
+	return context.WithValue(ctx, txContextKey{}, tx)
+}
+
+// TxFromContext extracts an active pgx.Tx from context.Context if present.
+func TxFromContext(ctx context.Context) (pgx.Tx, bool) {
+	tx, ok := ctx.Value(txContextKey{}).(pgx.Tx)
+	return tx, ok
+}
