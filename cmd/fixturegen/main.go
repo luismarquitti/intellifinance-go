@@ -104,7 +104,7 @@ func main() {
 	outDirFlag := flag.String("out", "test/fixtures", "Output directory for fixture files")
 	flag.Parse()
 
-	if err := os.MkdirAll(*outDirFlag, 0755); err != nil {
+	if err := os.MkdirAll(*outDirFlag, 0750); err != nil {
 		log.Fatalf("failed to create output directory %s: %v", *outDirFlag, err)
 	}
 
@@ -260,7 +260,7 @@ func exportNubankCSV(path string, txs []SyntheticTransaction) error {
 
 func exportAnnualExcel(path string, txs []SyntheticTransaction) error {
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sheetName := "Histórico 2025"
 	index, err := f.NewSheet(sheetName)

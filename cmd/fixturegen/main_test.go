@@ -15,7 +15,7 @@ func TestFixtureGenExporters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	txs := generateSyntheticTransactions(10, 12345)
 	if len(txs) != 10 {
@@ -75,7 +75,7 @@ func TestFixtureGenExporters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open generated XLSX: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	rows, err := f.GetRows("Histórico 2025")
 	if err != nil {
