@@ -114,7 +114,10 @@ go mod download
 # 3. Start local database & Redis
 docker compose -f docker-compose.dev.yml up -d
 
-# 4. Run tests
+# 4. Generate synthetic banking test fixtures (OFX, CSV, XLSX, JSON)
+go run cmd/fixturegen/main.go
+
+# 5. Run tests
 go test -v ./...
 ```
 

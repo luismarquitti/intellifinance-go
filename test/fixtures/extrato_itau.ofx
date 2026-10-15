@@ -1,0 +1,751 @@
+OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS>
+        <CODE>0
+        <SEVERITY>INFO
+      </STATUS>
+      <DTSERVER>20251231235959[-3:BRT]
+      <LANGUAGE>POR
+      <FI>
+        <ORG>Banco Itau SA
+        <FID>341
+      </FI>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1001
+      <STATUS>
+        <CODE>0
+        <SEVERITY>INFO
+      </STATUS>
+      <STMTRS>
+        <CURDEF>BRL
+        <BANKACCTFROM>
+          <BANKID>0341
+          <ACCTID>033123456
+          <ACCTTYPE>CHECKING
+        </BANKACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20250101000000[-3:BRT]
+          <DTEND>20251231235959[-3:BRT]
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250421120000[-3:BRT]
+            <TRNAMT>7611.20
+            <FITID>2025042100001
+            <MEMO>SALARIO MENSAL MULTINACIONAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251025120000[-3:BRT]
+            <TRNAMT>-675.11
+            <FITID>2025102500002
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250610120000[-3:BRT]
+            <TRNAMT>-169.22
+            <FITID>2025061000003
+            <MEMO>CONDOMINIO RESIDENCIAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250224120000[-3:BRT]
+            <TRNAMT>-308.66
+            <FITID>2025022400004
+            <MEMO>UBER DO BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250617120000[-3:BRT]
+            <TRNAMT>-547.09
+            <FITID>2025061700005
+            <MEMO>PAG*CLINICAELUMA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250507120000[-3:BRT]
+            <TRNAMT>-459.55
+            <FITID>2025050700006
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251204120000[-3:BRT]
+            <TRNAMT>-61.35
+            <FITID>2025120400007
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251026120000[-3:BRT]
+            <TRNAMT>-565.11
+            <FITID>2025102600008
+            <MEMO>SABOR DO BRASIL RESTAURANTE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250412120000[-3:BRT]
+            <TRNAMT>-303.48
+            <FITID>2025041200009
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251101120000[-3:BRT]
+            <TRNAMT>-741.16
+            <FITID>2025110100010
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250609120000[-3:BRT]
+            <TRNAMT>1896.62
+            <FITID>2025060900011
+            <MEMO>PIX RECEBIDO - CONSULTORIA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250909120000[-3:BRT]
+            <TRNAMT>-102.43
+            <FITID>2025090900012
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251220120000[-3:BRT]
+            <TRNAMT>-34.71
+            <FITID>2025122000013
+            <MEMO>CONDOMINIO RESIDENCIAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250614120000[-3:BRT]
+            <TRNAMT>-723.05
+            <FITID>2025061400014
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250823120000[-3:BRT]
+            <TRNAMT>-216.88
+            <FITID>2025082300015
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250402120000[-3:BRT]
+            <TRNAMT>-260.00
+            <FITID>2025040200016
+            <MEMO>PADARIA REAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251111120000[-3:BRT]
+            <TRNAMT>-394.75
+            <FITID>2025111100017
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250826120000[-3:BRT]
+            <TRNAMT>-693.44
+            <FITID>2025082600018
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251101120000[-3:BRT]
+            <TRNAMT>-185.55
+            <FITID>2025110100019
+            <MEMO>PAG*CLINICAELUMA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250511120000[-3:BRT]
+            <TRNAMT>-470.44
+            <FITID>2025051100020
+            <MEMO>MERCADO LIVRE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250925120000[-3:BRT]
+            <TRNAMT>5273.74
+            <FITID>2025092500021
+            <MEMO>SALARIO MENSAL MULTINACIONAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250105120000[-3:BRT]
+            <TRNAMT>-276.40
+            <FITID>2025010500022
+            <MEMO>RESTAURANTE MOCOTO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250323120000[-3:BRT]
+            <TRNAMT>-799.21
+            <FITID>2025032300023
+            <MEMO>RESTAURANTE MOCOTO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250808120000[-3:BRT]
+            <TRNAMT>-366.12
+            <FITID>2025080800024
+            <MEMO>UBER DO BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250501120000[-3:BRT]
+            <TRNAMT>-638.25
+            <FITID>2025050100025
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250721120000[-3:BRT]
+            <TRNAMT>-104.35
+            <FITID>2025072100026
+            <MEMO>PADARIA REAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251021120000[-3:BRT]
+            <TRNAMT>-474.49
+            <FITID>2025102100027
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250712120000[-3:BRT]
+            <TRNAMT>-117.80
+            <FITID>2025071200028
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251106120000[-3:BRT]
+            <TRNAMT>-621.39
+            <FITID>2025110600029
+            <MEMO>PADARIA REAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250628120000[-3:BRT]
+            <TRNAMT>-257.94
+            <FITID>2025062800030
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250810120000[-3:BRT]
+            <TRNAMT>1715.75
+            <FITID>2025081000031
+            <MEMO>PIX RECEBIDO - CONSULTORIA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250808120000[-3:BRT]
+            <TRNAMT>-621.04
+            <FITID>2025080800032
+            <MEMO>PAG*CLINICAELUMA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250923120000[-3:BRT]
+            <TRNAMT>-685.85
+            <FITID>2025092300033
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250613120000[-3:BRT]
+            <TRNAMT>-573.32
+            <FITID>2025061300034
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250107120000[-3:BRT]
+            <TRNAMT>-364.91
+            <FITID>2025010700035
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250910120000[-3:BRT]
+            <TRNAMT>-562.19
+            <FITID>2025091000036
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251116120000[-3:BRT]
+            <TRNAMT>-81.40
+            <FITID>2025111600037
+            <MEMO>RESTAURANTE MOCOTO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250902120000[-3:BRT]
+            <TRNAMT>-229.74
+            <FITID>2025090200038
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250928120000[-3:BRT]
+            <TRNAMT>-302.86
+            <FITID>2025092800039
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250512120000[-3:BRT]
+            <TRNAMT>-159.32
+            <FITID>2025051200040
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250531120000[-3:BRT]
+            <TRNAMT>7277.47
+            <FITID>2025053100041
+            <MEMO>SALARIO MENSAL MULTINACIONAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250228120000[-3:BRT]
+            <TRNAMT>-144.64
+            <FITID>2025022800042
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251018120000[-3:BRT]
+            <TRNAMT>-93.52
+            <FITID>2025101800043
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251016120000[-3:BRT]
+            <TRNAMT>-19.90
+            <FITID>2025101600044
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251217120000[-3:BRT]
+            <TRNAMT>-756.92
+            <FITID>2025121700045
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250205120000[-3:BRT]
+            <TRNAMT>-446.67
+            <FITID>2025020500046
+            <MEMO>POSTO IPIRANGA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250508120000[-3:BRT]
+            <TRNAMT>-73.28
+            <FITID>2025050800047
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250221120000[-3:BRT]
+            <TRNAMT>-719.35
+            <FITID>2025022100048
+            <MEMO>UBER DO BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251117120000[-3:BRT]
+            <TRNAMT>-300.66
+            <FITID>2025111700049
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250528120000[-3:BRT]
+            <TRNAMT>-500.71
+            <FITID>2025052800050
+            <MEMO>SABOR DO BRASIL RESTAURANTE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250918120000[-3:BRT]
+            <TRNAMT>4293.68
+            <FITID>2025091800051
+            <MEMO>PIX RECEBIDO - CONSULTORIA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251021120000[-3:BRT]
+            <TRNAMT>-189.13
+            <FITID>2025102100052
+            <MEMO>RESTAURANTE MOCOTO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250627120000[-3:BRT]
+            <TRNAMT>-494.93
+            <FITID>2025062700053
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250921120000[-3:BRT]
+            <TRNAMT>-575.97
+            <FITID>2025092100054
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251021120000[-3:BRT]
+            <TRNAMT>-497.98
+            <FITID>2025102100055
+            <MEMO>SPOTIFY RECIFE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251219120000[-3:BRT]
+            <TRNAMT>-425.08
+            <FITID>2025121900056
+            <MEMO>POSTO IPIRANGA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251016120000[-3:BRT]
+            <TRNAMT>-540.01
+            <FITID>2025101600057
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251024120000[-3:BRT]
+            <TRNAMT>-452.28
+            <FITID>2025102400058
+            <MEMO>CONDOMINIO RESIDENCIAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250706120000[-3:BRT]
+            <TRNAMT>-409.86
+            <FITID>2025070600059
+            <MEMO>RESTAURANTE MOCOTO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251214120000[-3:BRT]
+            <TRNAMT>-374.52
+            <FITID>2025121400060
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20251027120000[-3:BRT]
+            <TRNAMT>10114.00
+            <FITID>2025102700061
+            <MEMO>SALARIO MENSAL MULTINACIONAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250227120000[-3:BRT]
+            <TRNAMT>-638.12
+            <FITID>2025022700062
+            <MEMO>MERCADO LIVRE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251031120000[-3:BRT]
+            <TRNAMT>-237.05
+            <FITID>2025103100063
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250727120000[-3:BRT]
+            <TRNAMT>-356.26
+            <FITID>2025072700064
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251023120000[-3:BRT]
+            <TRNAMT>-741.32
+            <FITID>2025102300065
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250628120000[-3:BRT]
+            <TRNAMT>-803.11
+            <FITID>2025062800066
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250907120000[-3:BRT]
+            <TRNAMT>-672.05
+            <FITID>2025090700067
+            <MEMO>SPOTIFY RECIFE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250401120000[-3:BRT]
+            <TRNAMT>-439.74
+            <FITID>2025040100068
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250326120000[-3:BRT]
+            <TRNAMT>-515.48
+            <FITID>2025032600069
+            <MEMO>PAG*CLINICAELUMA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251227120000[-3:BRT]
+            <TRNAMT>-362.01
+            <FITID>2025122700070
+            <MEMO>SPOTIFY RECIFE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20251006120000[-3:BRT]
+            <TRNAMT>3716.29
+            <FITID>2025100600071
+            <MEMO>PIX RECEBIDO - CONSULTORIA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250413120000[-3:BRT]
+            <TRNAMT>-363.76
+            <FITID>2025041300072
+            <MEMO>PAG*CLINICAELUMA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250813120000[-3:BRT]
+            <TRNAMT>-39.50
+            <FITID>2025081300073
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250501120000[-3:BRT]
+            <TRNAMT>-51.65
+            <FITID>2025050100074
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250617120000[-3:BRT]
+            <TRNAMT>-716.23
+            <FITID>2025061700075
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250428120000[-3:BRT]
+            <TRNAMT>-701.81
+            <FITID>2025042800076
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250422120000[-3:BRT]
+            <TRNAMT>-497.97
+            <FITID>2025042200077
+            <MEMO>PADARIA REAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250902120000[-3:BRT]
+            <TRNAMT>-599.47
+            <FITID>2025090200078
+            <MEMO>AMAZON BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250606120000[-3:BRT]
+            <TRNAMT>-633.43
+            <FITID>2025060600079
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250322120000[-3:BRT]
+            <TRNAMT>-512.49
+            <FITID>2025032200080
+            <MEMO>DROGARIA SAO PAULO
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250706120000[-3:BRT]
+            <TRNAMT>10862.62
+            <FITID>2025070600081
+            <MEMO>SALARIO MENSAL MULTINACIONAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250514120000[-3:BRT]
+            <TRNAMT>-798.99
+            <FITID>2025051400082
+            <MEMO>MERCADO LIVRE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250122120000[-3:BRT]
+            <TRNAMT>-800.03
+            <FITID>2025012200083
+            <MEMO>MERCADO LIVRE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251223120000[-3:BRT]
+            <TRNAMT>-582.15
+            <FITID>2025122300084
+            <MEMO>SABOR DO BRASIL RESTAURANTE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251204120000[-3:BRT]
+            <TRNAMT>-116.20
+            <FITID>2025120400085
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251106120000[-3:BRT]
+            <TRNAMT>-34.37
+            <FITID>2025110600086
+            <MEMO>CONDOMINIO RESIDENCIAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250318120000[-3:BRT]
+            <TRNAMT>-443.25
+            <FITID>2025031800087
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250918120000[-3:BRT]
+            <TRNAMT>-590.80
+            <FITID>2025091800088
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250614120000[-3:BRT]
+            <TRNAMT>-691.04
+            <FITID>2025061400089
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250225120000[-3:BRT]
+            <TRNAMT>-315.26
+            <FITID>2025022500090
+            <MEMO>CONDOMINIO RESIDENCIAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT
+            <DTPOSTED>20250413120000[-3:BRT]
+            <TRNAMT>2361.24
+            <FITID>2025041300091
+            <MEMO>PIX RECEBIDO - CONSULTORIA
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250727120000[-3:BRT]
+            <TRNAMT>-252.36
+            <FITID>2025072700092
+            <MEMO>NETFLIX BRASIL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251009120000[-3:BRT]
+            <TRNAMT>-133.36
+            <FITID>2025100900093
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250505120000[-3:BRT]
+            <TRNAMT>-708.52
+            <FITID>2025050500094
+            <MEMO>SPOTIFY RECIFE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251012120000[-3:BRT]
+            <TRNAMT>-144.94
+            <FITID>2025101200095
+            <MEMO>CONDOMINIO RESIDENCIAL
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250308120000[-3:BRT]
+            <TRNAMT>-476.28
+            <FITID>2025030800096
+            <MEMO>MERCADO LIVRE
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250413120000[-3:BRT]
+            <TRNAMT>-719.62
+            <FITID>2025041300097
+            <MEMO>SUPERMERCADO PAO DE ACUCAR
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20250823120000[-3:BRT]
+            <TRNAMT>-230.01
+            <FITID>2025082300098
+            <MEMO>ENEL DISTRIBUICAO SP
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251013120000[-3:BRT]
+            <TRNAMT>-377.12
+            <FITID>2025101300099
+            <MEMO>CLARO BRASIL SERVICOS
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT
+            <DTPOSTED>20251129120000[-3:BRT]
+            <TRNAMT>-608.37
+            <FITID>2025112900100
+            <MEMO>RESTAURANTE MOCOTO
+          </STMTTRN>
+        </BANKTRANLIST>
+        <LEDGERBAL>
+          <BALAMT>15420.50
+          <DTASOF>20251231235959[-3:BRT]
+        </LEDGERBAL>
+      </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>
