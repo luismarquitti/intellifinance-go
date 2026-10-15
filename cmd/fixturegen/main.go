@@ -17,6 +17,7 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// SyntheticTransaction represents a mock financial transaction generated for test fixtures.
 type SyntheticTransaction struct {
 	ID          string          `json:"id"`
 	Date        time.Time       `json:"date"`
@@ -38,7 +39,7 @@ var brazilianMerchants = []struct {
 	{"NETFLIX BRASIL", "Assinaturas"},
 	{"SPOTIFY RECIFE", "Assinaturas"},
 	{"RESTAURANTE MOCOTO", "Alimentação"},
-	{"CONDOMINIO RESIDENCIAL", "Moradia"},
+	{"CONDOMINIO EDIFICIO REAL", "Moradia"},
 	{"ENEL DISTRIBUICAO SP", "Moradia"},
 	{"UBER DO BRASIL", "Transporte"},
 	{"MERCADO LIVRE", "Lazer"},
@@ -191,11 +192,9 @@ func exportItauOFX(path string, txs []SyntheticTransaction) error {
 	buf.WriteString("          <DTEND>20251231235959[-3:BRT]\n")
 
 	for _, tx := range txs {
-		trnType := "OTHER"
+		trnType := "DEBIT"
 		if tx.Amount.IsPositive() {
 			trnType = "CREDIT"
-		} else {
-			trnType = "DEBIT"
 		}
 
 		dateStr := tx.Date.Format("20060102") + "120000[-3:BRT]"
@@ -219,7 +218,7 @@ func exportItauOFX(path string, txs []SyntheticTransaction) error {
 	buf.WriteString("  </BANKMSGSRSV1>\n")
 	buf.WriteString("</OFX>\n")
 
-	return os.WriteFile(path, buf.Bytes(), 0644)
+	return os.WriteFile(path, buf.Bytes(), 0600)
 }
 
 func exportItauCSV(path string, txs []SyntheticTransaction) error {
@@ -234,7 +233,7 @@ func exportItauCSV(path string, txs []SyntheticTransaction) error {
 		buf.WriteString(fmt.Sprintf("%s;%s;%s;%s;%s\n", dateStr, tx.Description, amountStr, tx.Category, tx.FITID))
 	}
 
-	return os.WriteFile(path, buf.Bytes(), 0644)
+	return os.WriteFile(path, buf.Bytes(), 0600)
 }
 
 func formatBRLDecimal(s string) string {
@@ -256,7 +255,7 @@ func exportNubankCSV(path string, txs []SyntheticTransaction) error {
 		buf.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", dateStr, strings.ToLower(tx.Category), tx.Description, nubankAmount))
 	}
 
-	return os.WriteFile(path, buf.Bytes(), 0644)
+	return os.WriteFile(path, buf.Bytes(), 0600)
 }
 
 func exportAnnualExcel(path string, txs []SyntheticTransaction) error {
@@ -316,5 +315,5 @@ func exportJSON(path string, txs []SyntheticTransaction) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }

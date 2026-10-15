@@ -24,10 +24,11 @@ func TestFixtureGenExporters(t *testing.T) {
 
 	// 1. Test Itaú OFX
 	ofxPath := filepath.Join(tmpDir, "extrato_itau.ofx")
-	if err := exportItauOFX(ofxPath, txs); err != nil {
+	err = exportItauOFX(ofxPath, txs)
+	if err != nil {
 		t.Fatalf("exportItauOFX failed: %v", err)
 	}
-	ofxData, err := os.ReadFile(ofxPath)
+	ofxData, err := os.ReadFile(filepath.Clean(ofxPath)) // #nosec G304
 	if err != nil {
 		t.Fatalf("failed to read generated OFX: %v", err)
 	}
@@ -38,10 +39,11 @@ func TestFixtureGenExporters(t *testing.T) {
 
 	// 2. Test Itaú CSV
 	itauCSVPath := filepath.Join(tmpDir, "extrato_itau.csv")
-	if err := exportItauCSV(itauCSVPath, txs); err != nil {
+	err = exportItauCSV(itauCSVPath, txs)
+	if err != nil {
 		t.Fatalf("exportItauCSV failed: %v", err)
 	}
-	itauCSVData, err := os.ReadFile(itauCSVPath)
+	itauCSVData, err := os.ReadFile(filepath.Clean(itauCSVPath)) // #nosec G304
 	if err != nil {
 		t.Fatalf("failed to read Itaú CSV: %v", err)
 	}
@@ -51,10 +53,11 @@ func TestFixtureGenExporters(t *testing.T) {
 
 	// 3. Test Nubank CSV
 	nubankCSVPath := filepath.Join(tmpDir, "fatura_nubank.csv")
-	if err := exportNubankCSV(nubankCSVPath, txs); err != nil {
+	err = exportNubankCSV(nubankCSVPath, txs)
+	if err != nil {
 		t.Fatalf("exportNubankCSV failed: %v", err)
 	}
-	nubankCSVData, err := os.ReadFile(nubankCSVPath)
+	nubankCSVData, err := os.ReadFile(filepath.Clean(nubankCSVPath)) // #nosec G304
 	if err != nil {
 		t.Fatalf("failed to read Nubank CSV: %v", err)
 	}
@@ -64,10 +67,11 @@ func TestFixtureGenExporters(t *testing.T) {
 
 	// 4. Test Annual XLSX
 	xlsxPath := filepath.Join(tmpDir, "historico_anual.xlsx")
-	if err := exportAnnualExcel(xlsxPath, txs); err != nil {
+	err = exportAnnualExcel(xlsxPath, txs)
+	if err != nil {
 		t.Fatalf("exportAnnualExcel failed: %v", err)
 	}
-	f, err := excelize.OpenFile(xlsxPath)
+	f, err := excelize.OpenFile(filepath.Clean(xlsxPath))
 	if err != nil {
 		t.Fatalf("failed to open generated XLSX: %v", err)
 	}
@@ -83,10 +87,11 @@ func TestFixtureGenExporters(t *testing.T) {
 
 	// 5. Test JSON Export
 	jsonPath := filepath.Join(tmpDir, "transacoes.json")
-	if err := exportJSON(jsonPath, txs); err != nil {
+	err = exportJSON(jsonPath, txs)
+	if err != nil {
 		t.Fatalf("exportJSON failed: %v", err)
 	}
-	jsonData, err := os.ReadFile(jsonPath)
+	jsonData, err := os.ReadFile(filepath.Clean(jsonPath)) // #nosec G304
 	if err != nil {
 		t.Fatalf("failed to read generated JSON: %v", err)
 	}
