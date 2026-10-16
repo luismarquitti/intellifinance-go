@@ -12,6 +12,7 @@ require (
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/xuri/excelize/v2 v2.8.1
+	golang.org/x/text v0.14.0
 )
 
 require (
@@ -27,5 +28,4 @@ require (
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
 )
