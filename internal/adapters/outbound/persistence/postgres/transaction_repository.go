@@ -290,8 +290,8 @@ func (r *TransactionRepository) List(ctx context.Context, tenantID uuid.UUID, fi
 	}
 
 	items := make([]*domain.Transaction, len(rows))
-	for i, row := range rows {
-		tx, err := dbToDomainTransaction(&row)
+	for i := range rows {
+		tx, err := dbToDomainTransaction(&rows[i])
 		if err != nil {
 			return nil, 0, err
 		}
@@ -413,7 +413,8 @@ func (r *TransactionRepository) CreateSplits(ctx context.Context, tenantID, txID
 
 		var notes *string
 		if s.Notes != "" {
-			notes = &s.Notes
+			notesVal := s.Notes
+			notes = &notesVal
 		}
 		now := time.Now().UTC()
 		_, err := q.CreateTransactionSplit(ctx, db.CreateTransactionSplitParams{
