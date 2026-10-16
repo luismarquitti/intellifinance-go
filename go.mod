@@ -1,9 +1,13 @@
 module github.com/luismarquitti/intellifinance-go
 
-go 1.22
+go 1.24
+
+toolchain go1.24.4
 
 require (
 	github.com/brianvoe/gofakeit/v6 v6.28.0
+	github.com/go-chi/chi/v5 v5.5.0
+	github.com/go-chi/cors v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/shopspring/decimal v1.3.1
