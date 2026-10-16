@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -20,12 +21,12 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 			ww := chiMiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
 			start := time.Now()
 
-			defer func() {
+			defer func(ctx context.Context) {
 				duration := time.Since(start)
-				reqID := chiMiddleware.GetReqID(r.Context())
+				reqID := chiMiddleware.GetReqID(ctx)
 
 				logger.LogAttrs(
-					r.Context(),
+					ctx,
 					slog.LevelInfo,
 					"HTTP request",
 					slog.String("method", r.Method),
@@ -36,7 +37,7 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 					slog.String("request_id", reqID),
 					slog.String("remote_addr", r.RemoteAddr),
 				)
-			}()
+			}(r.Context())
 
 			next.ServeHTTP(ww, r)
 		})

@@ -29,6 +29,7 @@ func getTestPool(t *testing.T) *pgxpool.Pool {
 	}
 	if dbURL == "" {
 		// Use dedicated non-superuser intellifinance_app role to ensure RLS is enforced
+		//nolint:gosec // #nosec G101 -- default local dev/test connection string
 		dbURL = "postgres://intellifinance_app:CHANGE_IN_PRODUCTION@localhost:5432/intellifinance?sslmode=disable"
 	}
 

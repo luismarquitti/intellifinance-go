@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -18,7 +19,7 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
+			defer func(ctx context.Context) {
 				if rvr := recover(); rvr != nil {
 					if rvr == http.ErrAbortHandler {
 						panic(rvr)
@@ -26,7 +27,7 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 
 					stack := debug.Stack()
 					logger.LogAttrs(
-						r.Context(),
+						ctx,
 						slog.LevelError,
 						"panic recovered in HTTP handler",
 						slog.Any("error", rvr),
@@ -41,7 +42,7 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 					)
 					problem.Render(w, r, prob)
 				}
-			}()
+			}(r.Context())
 
 			next.ServeHTTP(w, r)
 		})
