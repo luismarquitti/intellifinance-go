@@ -64,8 +64,8 @@ IntelliFinance follows **Hexagonal Architecture (Ports and Adapters)**, ensuring
 |---|---|
 | [**Product Requirements Document (PRD)**](docs/PRD.md) | Authoritative product requirements, user personas (Luis & Eluma), and 23 Given/When/Then user stories. |
 | [**Execution Roadmap**](docs/ROADMAP.md) | 1,800+ lines guided engineering milestones from Phase 0 (Scaffolding) to Phase 5 (Release). |
-| [**Architectural Decision Records (ADRs)**](docs/adrs/) | 8 formal ADRs documenting runtime, API, persistence, queueing, Vertex AI, Open Finance, and security. |
-| [**Technical Specifications (SPECs)**](docs/specs/) | Detailed specs covering PostgreSQL DDL, REST API endpoints, ingestion parsers, queue state machines, and secrets. |
+| [**Architectural Decision Records (ADRs)**](docs/adrs/) | 9 formal ADRs documenting runtime, API, persistence, queueing, Vertex AI, Open Finance, security, and frontend architecture. |
+| [**Technical Specifications (SPECs)**](docs/specs/) | Detailed specs covering PostgreSQL DDL, REST API endpoints, ingestion parsers, queue state machines, secrets, and the frontend UI specification. |
 | [**Legacy Post-Mortem & Security Audit**](docs/legacy_analysis_postmortem.md) | Forensic analysis of legacy Node.js failure modes and git leakage audit mandating this greenfield reboot. |
 | [**Agent Guidelines (AGENTS.md)**](AGENTS.md) | Universal engineering standard for autonomous coding agents (Google Jules, Antigravity, Claude Code). |
 
