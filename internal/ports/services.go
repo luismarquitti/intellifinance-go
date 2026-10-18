@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"io"
 
 	"github.com/google/uuid"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
@@ -48,9 +49,33 @@ type TransactionService interface {
 	// List queries transactions with filtering and pagination within the tenant boundary.
 	List(ctx context.Context, tenantID uuid.UUID, filter TransactionFilter) ([]*domain.Transaction, int64, error)
 
+	// Summarize aggregates KPI metrics matching the filter criteria.
+	Summarize(ctx context.Context, tenantID uuid.UUID, filter TransactionFilter) (*TransactionSummary, error)
+
 	// Update updates an existing transaction.
 	Update(ctx context.Context, tx *domain.Transaction) error
 
 	// Delete removes a transaction by ID within the tenant boundary.
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
+
+	// BatchDelete removes multiple transactions by ID within the tenant boundary.
+	BatchDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error
+
+	// BatchUpdateCategory updates category for multiple transactions within the tenant boundary.
+	BatchUpdateCategory(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID, categoryID *uuid.UUID) error
 }
+
+// CSVIngestionResult summarises the outcome of a CSV file ingestion.
+type CSVIngestionResult struct {
+	TotalParsed      int      `json:"total_parsed"`
+	Inserted         int      `json:"inserted"`
+	Duplicates       int      `json:"duplicates"`
+	Errors           []string `json:"errors,omitempty"`
+}
+
+// CSVIngestionService defines the service for synchronously importing transactions from a CSV file.
+type CSVIngestionService interface {
+	// IngestCSV parses a CSV file and inserts non-duplicate transactions, adjusting account balance.
+	IngestCSV(ctx context.Context, tenantID, userID, accountID uuid.UUID, r io.Reader) (*CSVIngestionResult, error)
+}
+

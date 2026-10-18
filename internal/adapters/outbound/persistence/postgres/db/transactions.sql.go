@@ -14,6 +14,38 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const batchDeleteTransactions = `-- name: BatchDeleteTransactions :exec
+DELETE FROM transactions
+WHERE tenant_id = $1 AND id = ANY($2::uuid[])
+`
+
+type BatchDeleteTransactionsParams struct {
+	TenantID uuid.UUID   `json:"tenant_id"`
+	Ids      []uuid.UUID `json:"ids"`
+}
+
+func (q *Queries) BatchDeleteTransactions(ctx context.Context, arg BatchDeleteTransactionsParams) error {
+	_, err := q.db.Exec(ctx, batchDeleteTransactions, arg.TenantID, arg.Ids)
+	return err
+}
+
+const batchUpdateTransactionCategory = `-- name: BatchUpdateTransactionCategory :exec
+UPDATE transactions
+SET category_id = $2::uuid, updated_at = NOW()
+WHERE tenant_id = $1 AND id = ANY($3::uuid[])
+`
+
+type BatchUpdateTransactionCategoryParams struct {
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	CategoryID *uuid.UUID  `json:"category_id"`
+	Ids        []uuid.UUID `json:"ids"`
+}
+
+func (q *Queries) BatchUpdateTransactionCategory(ctx context.Context, arg BatchUpdateTransactionCategoryParams) error {
+	_, err := q.db.Exec(ctx, batchUpdateTransactionCategory, arg.TenantID, arg.CategoryID, arg.Ids)
+	return err
+}
+
 const countTransactions = `-- name: CountTransactions :one
 SELECT COUNT(*) FROM transactions
 WHERE tenant_id = $1
@@ -24,6 +56,45 @@ func (q *Queries) CountTransactions(ctx context.Context, tenantID uuid.UUID) (in
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countTransactionsFiltered = `-- name: CountTransactionsFiltered :one
+SELECT COUNT(*)::bigint FROM transactions
+WHERE tenant_id = $1
+  AND ($2::uuid IS NULL OR account_id = $2)
+  AND ($3::uuid IS NULL OR category_id = $3)
+  AND ($4::boolean IS NULL OR ($4::boolean = TRUE AND category_id IS NULL))
+  AND ($5::transaction_type IS NULL OR type = $5::transaction_type)
+  AND ($6::date IS NULL OR date >= $6)
+  AND ($7::date IS NULL OR date <= $7)
+  AND ($8::text IS NULL OR description ILIKE '%' || $8 || '%' OR notes ILIKE '%' || $8 || '%')
+`
+
+type CountTransactionsFilteredParams struct {
+	TenantID        uuid.UUID           `json:"tenant_id"`
+	AccountID       *uuid.UUID          `json:"account_id"`
+	CategoryID      *uuid.UUID          `json:"category_id"`
+	IsUncategorized *bool               `json:"is_uncategorized"`
+	Type            NullTransactionType `json:"type"`
+	FromDate        pgtype.Date         `json:"from_date"`
+	ToDate          pgtype.Date         `json:"to_date"`
+	Search          *string             `json:"search"`
+}
+
+func (q *Queries) CountTransactionsFiltered(ctx context.Context, arg CountTransactionsFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTransactionsFiltered,
+		arg.TenantID,
+		arg.AccountID,
+		arg.CategoryID,
+		arg.IsUncategorized,
+		arg.Type,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Search,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createTransaction = `-- name: CreateTransaction :one
@@ -409,6 +480,158 @@ func (q *Queries) ListTransactions(ctx context.Context, arg ListTransactionsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const listTransactionsFiltered = `-- name: ListTransactionsFiltered :many
+SELECT id, tenant_id, account_id, category_id, created_by_user_id, transacted_at, date, amount, description, clean_description, type, status, visibility, source, external_id, sequence_index, fingerprint, is_ai_categorized, ai_confidence, ai_model_version, is_manually_verified, transfer_peer_transaction_id, notes, metadata, created_at, updated_at FROM transactions
+WHERE tenant_id = $1
+  AND ($4::uuid IS NULL OR account_id = $4)
+  AND ($5::uuid IS NULL OR category_id = $5)
+  AND ($6::boolean IS NULL OR ($6::boolean = TRUE AND category_id IS NULL))
+  AND ($7::transaction_type IS NULL OR type = $7::transaction_type)
+  AND ($8::date IS NULL OR date >= $8)
+  AND ($9::date IS NULL OR date <= $9)
+  AND ($10::text IS NULL OR description ILIKE '%' || $10 || '%' OR notes ILIKE '%' || $10 || '%')
+ORDER BY
+  CASE WHEN $11::text = 'date' AND $12::text = 'asc' THEN date END ASC,
+  CASE WHEN ($11::text = 'date' OR $11::text = '') AND ($12::text = 'desc' OR $12::text = '') THEN date END DESC,
+  CASE WHEN $11::text = 'amount' AND $12::text = 'asc' THEN amount END ASC,
+  CASE WHEN $11::text = 'amount' AND $12::text = 'desc' THEN amount END DESC,
+  CASE WHEN $11::text = 'description' AND $12::text = 'asc' THEN description END ASC,
+  CASE WHEN $11::text = 'description' AND $12::text = 'desc' THEN description END DESC,
+  created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListTransactionsFilteredParams struct {
+	TenantID        uuid.UUID           `json:"tenant_id"`
+	Limit           int32               `json:"limit"`
+	Offset          int32               `json:"offset"`
+	AccountID       *uuid.UUID          `json:"account_id"`
+	CategoryID      *uuid.UUID          `json:"category_id"`
+	IsUncategorized *bool               `json:"is_uncategorized"`
+	Type            NullTransactionType `json:"type"`
+	FromDate        pgtype.Date         `json:"from_date"`
+	ToDate          pgtype.Date         `json:"to_date"`
+	Search          *string             `json:"search"`
+	SortBy          string              `json:"sort_by"`
+	SortOrder       string              `json:"sort_order"`
+}
+
+func (q *Queries) ListTransactionsFiltered(ctx context.Context, arg ListTransactionsFilteredParams) ([]Transaction, error) {
+	rows, err := q.db.Query(ctx, listTransactionsFiltered,
+		arg.TenantID,
+		arg.Limit,
+		arg.Offset,
+		arg.AccountID,
+		arg.CategoryID,
+		arg.IsUncategorized,
+		arg.Type,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Search,
+		arg.SortBy,
+		arg.SortOrder,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Transaction{}
+	for rows.Next() {
+		var i Transaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AccountID,
+			&i.CategoryID,
+			&i.CreatedByUserID,
+			&i.TransactedAt,
+			&i.Date,
+			&i.Amount,
+			&i.Description,
+			&i.CleanDescription,
+			&i.Type,
+			&i.Status,
+			&i.Visibility,
+			&i.Source,
+			&i.ExternalID,
+			&i.SequenceIndex,
+			&i.Fingerprint,
+			&i.IsAiCategorized,
+			&i.AiConfidence,
+			&i.AiModelVersion,
+			&i.IsManuallyVerified,
+			&i.TransferPeerTransactionID,
+			&i.Notes,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const summarizeTransactions = `-- name: SummarizeTransactions :one
+SELECT
+    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0)::numeric(15,2) AS total_income,
+    COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN ABS(amount) ELSE 0 END), 0)::numeric(15,2) AS total_expense,
+    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0)::numeric(15,2) AS net_balance,
+    COUNT(*)::bigint AS count
+FROM transactions
+WHERE tenant_id = $1
+  AND ($2::uuid IS NULL OR account_id = $2)
+  AND ($3::uuid IS NULL OR category_id = $3)
+  AND ($4::boolean IS NULL OR ($4::boolean = TRUE AND category_id IS NULL))
+  AND ($5::transaction_type IS NULL OR type = $5::transaction_type)
+  AND ($6::date IS NULL OR date >= $6)
+  AND ($7::date IS NULL OR date <= $7)
+  AND ($8::text IS NULL OR description ILIKE '%' || $8 || '%' OR notes ILIKE '%' || $8 || '%')
+`
+
+type SummarizeTransactionsParams struct {
+	TenantID        uuid.UUID           `json:"tenant_id"`
+	AccountID       *uuid.UUID          `json:"account_id"`
+	CategoryID      *uuid.UUID          `json:"category_id"`
+	IsUncategorized *bool               `json:"is_uncategorized"`
+	Type            NullTransactionType `json:"type"`
+	FromDate        pgtype.Date         `json:"from_date"`
+	ToDate          pgtype.Date         `json:"to_date"`
+	Search          *string             `json:"search"`
+}
+
+type SummarizeTransactionsRow struct {
+	TotalIncome  decimal.Decimal `json:"total_income"`
+	TotalExpense decimal.Decimal `json:"total_expense"`
+	NetBalance   decimal.Decimal `json:"net_balance"`
+	Count        int64           `json:"count"`
+}
+
+func (q *Queries) SummarizeTransactions(ctx context.Context, arg SummarizeTransactionsParams) (SummarizeTransactionsRow, error) {
+	row := q.db.QueryRow(ctx, summarizeTransactions,
+		arg.TenantID,
+		arg.AccountID,
+		arg.CategoryID,
+		arg.IsUncategorized,
+		arg.Type,
+		arg.FromDate,
+		arg.ToDate,
+		arg.Search,
+	)
+	var i SummarizeTransactionsRow
+	err := row.Scan(
+		&i.TotalIncome,
+		&i.TotalExpense,
+		&i.NetBalance,
+		&i.Count,
+	)
+	return i, err
 }
 
 const updateTransaction = `-- name: UpdateTransaction :one

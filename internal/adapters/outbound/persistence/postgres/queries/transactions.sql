@@ -74,9 +74,56 @@ WHERE tenant_id = $1
 ORDER BY date DESC, transacted_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListTransactionsFiltered :many
+SELECT * FROM transactions
+WHERE tenant_id = $1
+  AND (sqlc.narg('account_id')::uuid IS NULL OR account_id = sqlc.narg('account_id'))
+  AND (sqlc.narg('category_id')::uuid IS NULL OR category_id = sqlc.narg('category_id'))
+  AND (sqlc.narg('is_uncategorized')::boolean IS NULL OR (sqlc.narg('is_uncategorized')::boolean = TRUE AND category_id IS NULL))
+  AND (sqlc.narg('type')::transaction_type IS NULL OR type = sqlc.narg('type')::transaction_type)
+  AND (sqlc.narg('from_date')::date IS NULL OR date >= sqlc.narg('from_date'))
+  AND (sqlc.narg('to_date')::date IS NULL OR date <= sqlc.narg('to_date'))
+  AND (sqlc.narg('search')::text IS NULL OR description ILIKE '%' || sqlc.narg('search') || '%' OR notes ILIKE '%' || sqlc.narg('search') || '%')
+ORDER BY
+  CASE WHEN sqlc.arg('sort_by')::text = 'date' AND sqlc.arg('sort_order')::text = 'asc' THEN date END ASC,
+  CASE WHEN (sqlc.arg('sort_by')::text = 'date' OR sqlc.arg('sort_by')::text = '') AND (sqlc.arg('sort_order')::text = 'desc' OR sqlc.arg('sort_order')::text = '') THEN date END DESC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'amount' AND sqlc.arg('sort_order')::text = 'asc' THEN amount END ASC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'amount' AND sqlc.arg('sort_order')::text = 'desc' THEN amount END DESC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'description' AND sqlc.arg('sort_order')::text = 'asc' THEN description END ASC,
+  CASE WHEN sqlc.arg('sort_by')::text = 'description' AND sqlc.arg('sort_order')::text = 'desc' THEN description END DESC,
+  created_at DESC
+LIMIT $2 OFFSET $3;
+
 -- name: CountTransactions :one
 SELECT COUNT(*) FROM transactions
 WHERE tenant_id = $1;
+
+-- name: CountTransactionsFiltered :one
+SELECT COUNT(*)::bigint FROM transactions
+WHERE tenant_id = $1
+  AND (sqlc.narg('account_id')::uuid IS NULL OR account_id = sqlc.narg('account_id'))
+  AND (sqlc.narg('category_id')::uuid IS NULL OR category_id = sqlc.narg('category_id'))
+  AND (sqlc.narg('is_uncategorized')::boolean IS NULL OR (sqlc.narg('is_uncategorized')::boolean = TRUE AND category_id IS NULL))
+  AND (sqlc.narg('type')::transaction_type IS NULL OR type = sqlc.narg('type')::transaction_type)
+  AND (sqlc.narg('from_date')::date IS NULL OR date >= sqlc.narg('from_date'))
+  AND (sqlc.narg('to_date')::date IS NULL OR date <= sqlc.narg('to_date'))
+  AND (sqlc.narg('search')::text IS NULL OR description ILIKE '%' || sqlc.narg('search') || '%' OR notes ILIKE '%' || sqlc.narg('search') || '%');
+
+-- name: SummarizeTransactions :one
+SELECT
+    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0)::numeric(15,2) AS total_income,
+    COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN ABS(amount) ELSE 0 END), 0)::numeric(15,2) AS total_expense,
+    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0)::numeric(15,2) AS net_balance,
+    COUNT(*)::bigint AS count
+FROM transactions
+WHERE tenant_id = $1
+  AND (sqlc.narg('account_id')::uuid IS NULL OR account_id = sqlc.narg('account_id'))
+  AND (sqlc.narg('category_id')::uuid IS NULL OR category_id = sqlc.narg('category_id'))
+  AND (sqlc.narg('is_uncategorized')::boolean IS NULL OR (sqlc.narg('is_uncategorized')::boolean = TRUE AND category_id IS NULL))
+  AND (sqlc.narg('type')::transaction_type IS NULL OR type = sqlc.narg('type')::transaction_type)
+  AND (sqlc.narg('from_date')::date IS NULL OR date >= sqlc.narg('from_date'))
+  AND (sqlc.narg('to_date')::date IS NULL OR date <= sqlc.narg('to_date'))
+  AND (sqlc.narg('search')::text IS NULL OR description ILIKE '%' || sqlc.narg('search') || '%' OR notes ILIKE '%' || sqlc.narg('search') || '%');
 
 -- name: UpdateTransaction :one
 UPDATE transactions
@@ -108,6 +155,15 @@ RETURNING *;
 -- name: DeleteTransaction :exec
 DELETE FROM transactions
 WHERE id = $1 AND tenant_id = $2;
+
+-- name: BatchDeleteTransactions :exec
+DELETE FROM transactions
+WHERE tenant_id = $1 AND id = ANY(@ids::uuid[]);
+
+-- name: BatchUpdateTransactionCategory :exec
+UPDATE transactions
+SET category_id = sqlc.narg('category_id')::uuid, updated_at = NOW()
+WHERE tenant_id = $1 AND id = ANY(@ids::uuid[]);
 
 -- name: FindExistingFingerprints :many
 SELECT fingerprint FROM transactions

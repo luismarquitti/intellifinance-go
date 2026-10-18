@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -275,15 +276,62 @@ func (r *TransactionRepository) List(ctx context.Context, tenantID uuid.UUID, fi
 	}
 	offset := (page - 1) * limit
 
-	total, err := q.CountTransactions(ctx, tenantID)
+	var txType db.NullTransactionType
+	if filter.Type != nil {
+		txType = db.NullTransactionType{TransactionType: db.TransactionType(*filter.Type), Valid: true}
+	}
+
+	var fromDate, toDate pgtype.Date
+	if filter.FromDate != nil {
+		fromDate = pgtype.Date{Time: *filter.FromDate, Valid: true}
+	}
+	if filter.ToDate != nil {
+		toDate = pgtype.Date{Time: *filter.ToDate, Valid: true}
+	}
+
+	var search *string
+	if strings.TrimSpace(filter.Search) != "" {
+		s := strings.TrimSpace(filter.Search)
+		search = &s
+	}
+
+	sortBy := "date"
+	if filter.SortBy == "amount" || filter.SortBy == "description" || filter.SortBy == "date" {
+		sortBy = filter.SortBy
+	}
+
+	sortOrder := "desc"
+	if strings.ToLower(filter.SortOrder) == "asc" {
+		sortOrder = "asc"
+	}
+
+	total, err := q.CountTransactionsFiltered(ctx, db.CountTransactionsFilteredParams{
+		TenantID:        tenantID,
+		AccountID:       filter.AccountID,
+		CategoryID:      filter.CategoryID,
+		IsUncategorized: filter.Uncategorized,
+		Type:            txType,
+		FromDate:        fromDate,
+		ToDate:          toDate,
+		Search:          search,
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count transactions: %w", err)
 	}
 
-	rows, err := q.ListTransactions(ctx, db.ListTransactionsParams{
-		TenantID: tenantID,
-		Limit:    limit,
-		Offset:   offset,
+	rows, err := q.ListTransactionsFiltered(ctx, db.ListTransactionsFilteredParams{
+		TenantID:        tenantID,
+		Limit:           limit,
+		Offset:          offset,
+		AccountID:       filter.AccountID,
+		CategoryID:      filter.CategoryID,
+		IsUncategorized: filter.Uncategorized,
+		Type:            txType,
+		FromDate:        fromDate,
+		ToDate:          toDate,
+		Search:          search,
+		SortBy:          sortBy,
+		SortOrder:       sortOrder,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list transactions: %w", err)
@@ -299,6 +347,114 @@ func (r *TransactionRepository) List(ctx context.Context, tenantID uuid.UUID, fi
 	}
 
 	return items, total, nil
+}
+
+// Summarize aggregates KPI metrics matching the filter criteria.
+func (r *TransactionRepository) Summarize(ctx context.Context, tenantID uuid.UUID, filter ports.TransactionFilter) (*ports.TransactionSummary, error) {
+	if r.tx == nil {
+		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
+			var summary *ports.TransactionSummary
+			err := WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
+				var err error
+				summary, err = r.WithTx(tx).Summarize(ctx, tenantID, filter)
+				return err
+			})
+			return summary, err
+		}
+	}
+
+	q := r.getQueries(ctx)
+
+	var txType db.NullTransactionType
+	if filter.Type != nil {
+		txType = db.NullTransactionType{TransactionType: db.TransactionType(*filter.Type), Valid: true}
+	}
+
+	var fromDate, toDate pgtype.Date
+	if filter.FromDate != nil {
+		fromDate = pgtype.Date{Time: *filter.FromDate, Valid: true}
+	}
+	if filter.ToDate != nil {
+		toDate = pgtype.Date{Time: *filter.ToDate, Valid: true}
+	}
+
+	var search *string
+	if strings.TrimSpace(filter.Search) != "" {
+		s := strings.TrimSpace(filter.Search)
+		search = &s
+	}
+
+	row, err := q.SummarizeTransactions(ctx, db.SummarizeTransactionsParams{
+		TenantID:        tenantID,
+		AccountID:       filter.AccountID,
+		CategoryID:      filter.CategoryID,
+		IsUncategorized: filter.Uncategorized,
+		Type:            txType,
+		FromDate:        fromDate,
+		ToDate:          toDate,
+		Search:          search,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to summarize transactions: %w", err)
+	}
+
+	return &ports.TransactionSummary{
+		TotalIncome:  row.TotalIncome,
+		TotalExpense: row.TotalExpense,
+		NetBalance:   row.NetBalance,
+		Count:        row.Count,
+	}, nil
+}
+
+// BatchDelete removes multiple transactions by ID within a tenant boundary.
+func (r *TransactionRepository) BatchDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	if r.tx == nil {
+		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
+			return WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
+				return r.WithTx(tx).BatchDelete(ctx, tenantID, ids)
+			})
+		}
+	}
+
+	q := r.getQueries(ctx)
+	if err := q.BatchDeleteTransactions(ctx, db.BatchDeleteTransactionsParams{
+		TenantID: tenantID,
+		Ids:      ids,
+	}); err != nil {
+		return fmt.Errorf("failed to batch delete transactions: %w", err)
+	}
+
+	return nil
+}
+
+// BatchUpdateCategory sets the category for multiple transactions within a tenant boundary.
+func (r *TransactionRepository) BatchUpdateCategory(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID, categoryID *uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	if r.tx == nil {
+		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
+			return WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
+				return r.WithTx(tx).BatchUpdateCategory(ctx, tenantID, ids, categoryID)
+			})
+		}
+	}
+
+	q := r.getQueries(ctx)
+	if err := q.BatchUpdateTransactionCategory(ctx, db.BatchUpdateTransactionCategoryParams{
+		TenantID:   tenantID,
+		CategoryID: categoryID,
+		Ids:        ids,
+	}); err != nil {
+		return fmt.Errorf("failed to batch update transaction categories: %w", err)
+	}
+
+	return nil
 }
 
 // Update persists mutations to an existing transaction.

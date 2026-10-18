@@ -24,6 +24,14 @@ SELECT * FROM categories
 WHERE tenant_id = $1
 ORDER BY name ASC;
 
+-- name: ListCategoriesFiltered :many
+SELECT * FROM categories
+WHERE tenant_id = $1
+  AND (sqlc.narg('type')::transaction_type IS NULL OR type = sqlc.narg('type')::transaction_type)
+  AND (sqlc.narg('parent_id')::uuid IS NULL OR parent_id = sqlc.narg('parent_id'))
+  AND (sqlc.narg('include_system')::boolean IS NULL OR sqlc.narg('include_system')::boolean = TRUE OR is_system = FALSE)
+ORDER BY name ASC;
+
 -- name: UpdateCategory :one
 UPDATE categories
 SET

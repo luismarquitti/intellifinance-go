@@ -192,6 +192,69 @@ func (q *Queries) ListAccounts(ctx context.Context, tenantID uuid.UUID) ([]Accou
 	return items, nil
 }
 
+const listAccountsFiltered = `-- name: ListAccountsFiltered :many
+SELECT id, tenant_id, owner_user_id, name, type, currency, balance, visibility, institution_id, institution_name, account_number_masked, color_hex, icon_name, is_active, deleted_at, created_at, updated_at FROM accounts
+WHERE tenant_id = $1
+  AND deleted_at IS NULL
+  AND ($2::uuid IS NULL OR owner_user_id = $2)
+  AND ($3::account_type IS NULL OR type = $3::account_type)
+  AND ($4::visibility_type IS NULL OR visibility = $4::visibility_type)
+  AND ($5::boolean IS NULL OR is_active = $5)
+ORDER BY name ASC
+`
+
+type ListAccountsFilteredParams struct {
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	OwnerUserID *uuid.UUID         `json:"owner_user_id"`
+	Type        NullAccountType    `json:"type"`
+	Visibility  NullVisibilityType `json:"visibility"`
+	IsActive    *bool              `json:"is_active"`
+}
+
+func (q *Queries) ListAccountsFiltered(ctx context.Context, arg ListAccountsFilteredParams) ([]Account, error) {
+	rows, err := q.db.Query(ctx, listAccountsFiltered,
+		arg.TenantID,
+		arg.OwnerUserID,
+		arg.Type,
+		arg.Visibility,
+		arg.IsActive,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Account{}
+	for rows.Next() {
+		var i Account
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.OwnerUserID,
+			&i.Name,
+			&i.Type,
+			&i.Currency,
+			&i.Balance,
+			&i.Visibility,
+			&i.InstitutionID,
+			&i.InstitutionName,
+			&i.AccountNumberMasked,
+			&i.ColorHex,
+			&i.IconName,
+			&i.IsActive,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const softDeleteAccount = `-- name: SoftDeleteAccount :exec
 UPDATE accounts
 SET
