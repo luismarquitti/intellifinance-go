@@ -1,11 +1,16 @@
 # Binaries & build artifacts
 bin/
-dist/
+/dist/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+
+# Web & Node dependencies
+web/node_modules/
+web/.vite/
+web/*.tsbuildinfo
 
 # Go workspace & test artifacts
 vendor/

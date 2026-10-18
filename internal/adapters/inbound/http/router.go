@@ -119,5 +119,8 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	// 4. Also register under root Group for direct endpoint access
 	r.Group(registerAPIRoutes)
 
+	// 5. Embedded Frontend Single Page Application (SPA)
+	RegisterSPARoutes(r)
+
 	return r
 }
