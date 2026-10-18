@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/handlers"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/middleware"
+	"github.com/luismarquitti/intellifinance-go/internal/config"
 	"github.com/luismarquitti/intellifinance-go/internal/ports"
 )
 
@@ -17,6 +18,7 @@ type RouterConfig struct {
 	CategoryService     ports.CategoryService
 	TransactionService  ports.TransactionService
 	CSVIngestionService ports.CSVIngestionService
+	AppConfig           *config.Config
 	Logger              *slog.Logger
 	CORSOptions         *cors.Options
 }
@@ -59,10 +61,25 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	if cfg.CSVIngestionService != nil {
 		csvHandler = handlers.NewCSVIngestHandler(cfg.CSVIngestionService)
 	}
+	var sessionHandler *handlers.SessionHandler
+	if cfg.AppConfig != nil {
+		sessionHandler = handlers.NewSessionHandler(cfg.AppConfig)
+	}
 
 	// Route registration helper for protected endpoints
 	registerAPIRoutes := func(sub chi.Router) {
+		if cfg.AppConfig != nil {
+			sub.Use(middleware.DevAdminFallbackMiddleware(
+				cfg.AppConfig.IsDevelopment(),
+				cfg.AppConfig.DevTenantID,
+				cfg.AppConfig.DevUserID,
+			))
+		}
 		sub.Use(middleware.TenantContextMiddleware)
+
+		if sessionHandler != nil {
+			sub.Get("/session", sessionHandler.GetSession)
+		}
 
 		// Accounts CRUD
 		sub.Route("/accounts", func(r chi.Router) {
