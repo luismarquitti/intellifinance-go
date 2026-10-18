@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -89,7 +90,11 @@ func (r *CreateTransactionRequest) Validate() []problem.InvalidParam {
 
 // UpdateTransactionRequest defines the payload for updating transaction fields.
 type UpdateTransactionRequest struct {
+	AccountID   *string        `json:"account_id,omitempty"`
 	CategoryID  *string        `json:"category_id,omitempty"`
+	Date        *string        `json:"date,omitempty"`
+	Amount      *string        `json:"amount,omitempty"`
+	Type        *string        `json:"type,omitempty"`
 	Description *string        `json:"description,omitempty"`
 	Visibility  *string        `json:"visibility,omitempty"`
 	Notes       *string        `json:"notes,omitempty"`
@@ -100,6 +105,11 @@ type UpdateTransactionRequest struct {
 // Validate validates input fields of UpdateTransactionRequest.
 func (r *UpdateTransactionRequest) Validate() []problem.InvalidParam {
 	var errs []problem.InvalidParam
+	if r.AccountID != nil && strings.TrimSpace(*r.AccountID) != "" {
+		if id, err := uuid.Parse(strings.TrimSpace(*r.AccountID)); err != nil || id == uuid.Nil {
+			errs = append(errs, problem.InvalidParam{Name: "account_id", Reason: "must be a valid non-nil UUID"})
+		}
+	}
 	if r.CategoryID != nil && strings.TrimSpace(*r.CategoryID) != "" {
 		if id, err := uuid.Parse(strings.TrimSpace(*r.CategoryID)); err != nil || id == uuid.Nil {
 			errs = append(errs, problem.InvalidParam{Name: "category_id", Reason: "must be a valid non-nil UUID"})
@@ -107,6 +117,34 @@ func (r *UpdateTransactionRequest) Validate() []problem.InvalidParam {
 	}
 	if r.Description != nil && strings.TrimSpace(*r.Description) == "" {
 		errs = append(errs, problem.InvalidParam{Name: "description", Reason: "cannot be empty"})
+	}
+	if r.Date != nil && strings.TrimSpace(*r.Date) != "" {
+		if _, err := ParseDate(*r.Date); err != nil {
+			errs = append(errs, problem.InvalidParam{Name: "date", Reason: "must be formatted as YYYY-MM-DD or RFC3339"})
+		}
+	}
+	var parsedType *domain.TransactionType
+	if r.Type != nil && strings.TrimSpace(*r.Type) != "" {
+		txType := domain.TransactionType(strings.ToUpper(strings.TrimSpace(*r.Type)))
+		if !txType.IsValid() {
+			errs = append(errs, problem.InvalidParam{Name: "type", Reason: "must be one of INCOME, EXPENSE, TRANSFER"})
+		} else {
+			parsedType = &txType
+		}
+	}
+	if r.Amount != nil && strings.TrimSpace(*r.Amount) != "" {
+		amt, err := decimal.NewFromString(strings.TrimSpace(*r.Amount))
+		if err != nil {
+			errs = append(errs, problem.InvalidParam{Name: "amount", Reason: "must be a valid decimal number"})
+		} else if amt.IsZero() {
+			errs = append(errs, problem.InvalidParam{Name: "amount", Reason: "must be a non-zero decimal value"})
+		} else if parsedType != nil {
+			if *parsedType == domain.TransactionTypeExpense && amt.IsPositive() {
+				errs = append(errs, problem.InvalidParam{Name: "amount", Reason: "amount for EXPENSE must be negative"})
+			} else if *parsedType == domain.TransactionTypeIncome && amt.IsNegative() {
+				errs = append(errs, problem.InvalidParam{Name: "amount", Reason: "amount for INCOME must be positive"})
+			}
+		}
 	}
 	if r.Visibility != nil {
 		vis := domain.Visibility(strings.ToUpper(strings.TrimSpace(*r.Visibility)))
@@ -121,6 +159,66 @@ func (r *UpdateTransactionRequest) Validate() []problem.InvalidParam {
 		}
 	}
 	return errs
+}
+
+// BatchDeleteTransactionsRequest defines payload for deleting multiple transactions.
+type BatchDeleteTransactionsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// Validate validates input fields of BatchDeleteTransactionsRequest.
+func (r *BatchDeleteTransactionsRequest) Validate() []problem.InvalidParam {
+	var errs []problem.InvalidParam
+	if len(r.IDs) == 0 {
+		errs = append(errs, problem.InvalidParam{Name: "ids", Reason: "cannot be empty"})
+	}
+	for i, idStr := range r.IDs {
+		if id, err := uuid.Parse(strings.TrimSpace(idStr)); err != nil || id == uuid.Nil {
+			errs = append(errs, problem.InvalidParam{Name: fmt.Sprintf("ids[%d]", i), Reason: "must be a valid UUID"})
+		}
+	}
+	return errs
+}
+
+// BatchUpdateCategoryRequest defines payload for setting category on multiple transactions.
+type BatchUpdateCategoryRequest struct {
+	IDs        []string `json:"ids"`
+	CategoryID *string  `json:"category_id"`
+}
+
+// Validate validates input fields of BatchUpdateCategoryRequest.
+func (r *BatchUpdateCategoryRequest) Validate() []problem.InvalidParam {
+	var errs []problem.InvalidParam
+	if len(r.IDs) == 0 {
+		errs = append(errs, problem.InvalidParam{Name: "ids", Reason: "cannot be empty"})
+	}
+	for i, idStr := range r.IDs {
+		if id, err := uuid.Parse(strings.TrimSpace(idStr)); err != nil || id == uuid.Nil {
+			errs = append(errs, problem.InvalidParam{Name: fmt.Sprintf("ids[%d]", i), Reason: "must be a valid UUID"})
+		}
+	}
+	if r.CategoryID != nil && strings.TrimSpace(*r.CategoryID) != "" {
+		if id, err := uuid.Parse(strings.TrimSpace(*r.CategoryID)); err != nil || id == uuid.Nil {
+			errs = append(errs, problem.InvalidParam{Name: "category_id", Reason: "must be a valid UUID"})
+		}
+	}
+	return errs
+}
+
+// TransactionSummaryResponse defines KPI summary card values.
+type TransactionSummaryResponse struct {
+	TotalIncome  string `json:"total_income"`
+	TotalExpense string `json:"total_expense"`
+	NetBalance   string `json:"net_balance"`
+	Count        int64  `json:"count"`
+}
+
+// CSVIngestResponse defines response for CSV upload.
+type CSVIngestResponse struct {
+	TotalParsed int      `json:"total_parsed"`
+	Inserted    int      `json:"inserted"`
+	Duplicates  int      `json:"duplicates"`
+	Errors      []string `json:"errors,omitempty"`
 }
 
 // TransactionResponse defines the serializable response for a transaction.

@@ -65,6 +65,15 @@ func (d *dummyTransactionService) Update(ctx context.Context, tx *domain.Transac
 func (d *dummyTransactionService) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	return nil
 }
+func (d *dummyTransactionService) Summarize(ctx context.Context, tenantID uuid.UUID, filter ports.TransactionFilter) (*ports.TransactionSummary, error) {
+	return &ports.TransactionSummary{}, nil
+}
+func (d *dummyTransactionService) BatchDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	return nil
+}
+func (d *dummyTransactionService) BatchUpdateCategory(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID, categoryID *uuid.UUID) error {
+	return nil
+}
 
 func TestRouter_E2E(t *testing.T) {
 	t.Parallel()

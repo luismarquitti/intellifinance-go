@@ -13,11 +13,12 @@ import (
 
 // RouterConfig contains dependencies and configuration options for assembling the API router.
 type RouterConfig struct {
-	AccountService     ports.AccountService
-	CategoryService    ports.CategoryService
-	TransactionService ports.TransactionService
-	Logger             *slog.Logger
-	CORSOptions        *cors.Options
+	AccountService      ports.AccountService
+	CategoryService     ports.CategoryService
+	TransactionService  ports.TransactionService
+	CSVIngestionService ports.CSVIngestionService
+	Logger              *slog.Logger
+	CORSOptions         *cors.Options
 }
 
 // NewRouter builds and configures the Chi v5 router with all required middlewares,
@@ -54,6 +55,10 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	accountHandler := handlers.NewAccountHandler(cfg.AccountService)
 	categoryHandler := handlers.NewCategoryHandler(cfg.CategoryService)
 	transactionHandler := handlers.NewTransactionHandler(cfg.TransactionService)
+	var csvHandler *handlers.CSVIngestHandler
+	if cfg.CSVIngestionService != nil {
+		csvHandler = handlers.NewCSVIngestHandler(cfg.CSVIngestionService)
+	}
 
 	// Route registration helper for protected endpoints
 	registerAPIRoutes := func(sub chi.Router) {
@@ -78,7 +83,14 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		sub.Route("/transactions", func(r chi.Router) {
 			r.Post("/", transactionHandler.CreateTransaction)
 			r.Get("/", transactionHandler.ListTransactions)
+			r.Get("/summary", transactionHandler.SummarizeTransactions)
+			r.Post("/batch-delete", transactionHandler.BatchDeleteTransactions)
+			r.Post("/batch-category", transactionHandler.BatchUpdateCategory)
+			if csvHandler != nil {
+				r.Post("/import/csv", csvHandler.ImportCSV)
+			}
 			r.Get("/{id}", transactionHandler.GetTransaction)
+			r.Put("/{id}", transactionHandler.UpdateTransaction)
 			r.Patch("/{id}", transactionHandler.UpdateTransaction)
 			r.Delete("/{id}", transactionHandler.DeleteTransaction)
 		})

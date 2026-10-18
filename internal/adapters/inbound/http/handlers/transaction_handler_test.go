@@ -99,6 +99,44 @@ func (m *mockTransactionService) Delete(ctx context.Context, tenantID, id uuid.U
 	return nil
 }
 
+func (m *mockTransactionService) Summarize(ctx context.Context, tenantID uuid.UUID, filter ports.TransactionFilter) (*ports.TransactionSummary, error) {
+	summary := &ports.TransactionSummary{
+		TotalIncome:  decimal.Zero,
+		TotalExpense: decimal.Zero,
+		NetBalance:   decimal.Zero,
+	}
+	for _, tx := range m.txs {
+		if tx.TenantID != tenantID {
+			continue
+		}
+		summary.Count++
+		if tx.Type == domain.TransactionTypeIncome {
+			summary.TotalIncome = summary.TotalIncome.Add(tx.Amount)
+			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
+		} else if tx.Type == domain.TransactionTypeExpense {
+			summary.TotalExpense = summary.TotalExpense.Add(tx.Amount.Abs())
+			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
+		}
+	}
+	return summary, nil
+}
+
+func (m *mockTransactionService) BatchDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
+	for _, id := range ids {
+		delete(m.txs, id)
+	}
+	return nil
+}
+
+func (m *mockTransactionService) BatchUpdateCategory(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID, categoryID *uuid.UUID) error {
+	for _, id := range ids {
+		if tx, exists := m.txs[id]; exists && tx.TenantID == tenantID {
+			tx.CategoryID = categoryID
+		}
+	}
+	return nil
+}
+
 func TestTransactionHandler_CreateTransaction(t *testing.T) {
 	t.Parallel()
 
