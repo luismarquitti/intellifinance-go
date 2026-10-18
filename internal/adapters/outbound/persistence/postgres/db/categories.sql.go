@@ -169,6 +169,58 @@ func (q *Queries) ListCategories(ctx context.Context, tenantID uuid.UUID) ([]Cat
 	return items, nil
 }
 
+const listCategoriesFiltered = `-- name: ListCategoriesFiltered :many
+SELECT id, tenant_id, parent_id, name, type, color_hex, icon_name, is_system, created_at, updated_at FROM categories
+WHERE tenant_id = $1
+  AND ($2::transaction_type IS NULL OR type = $2::transaction_type)
+  AND ($3::uuid IS NULL OR parent_id = $3)
+  AND ($4::boolean IS NULL OR $4::boolean = TRUE OR is_system = FALSE)
+ORDER BY name ASC
+`
+
+type ListCategoriesFilteredParams struct {
+	TenantID      uuid.UUID           `json:"tenant_id"`
+	Type          NullTransactionType `json:"type"`
+	ParentID      *uuid.UUID          `json:"parent_id"`
+	IncludeSystem *bool               `json:"include_system"`
+}
+
+func (q *Queries) ListCategoriesFiltered(ctx context.Context, arg ListCategoriesFilteredParams) ([]Category, error) {
+	rows, err := q.db.Query(ctx, listCategoriesFiltered,
+		arg.TenantID,
+		arg.Type,
+		arg.ParentID,
+		arg.IncludeSystem,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Category{}
+	for rows.Next() {
+		var i Category
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.ParentID,
+			&i.Name,
+			&i.Type,
+			&i.ColorHex,
+			&i.IconName,
+			&i.IsSystem,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCategory = `-- name: UpdateCategory :one
 UPDATE categories
 SET

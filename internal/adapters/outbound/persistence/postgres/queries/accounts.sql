@@ -30,6 +30,16 @@ SELECT * FROM accounts
 WHERE tenant_id = $1 AND deleted_at IS NULL
 ORDER BY name ASC;
 
+-- name: ListAccountsFiltered :many
+SELECT * FROM accounts
+WHERE tenant_id = $1
+  AND deleted_at IS NULL
+  AND (sqlc.narg('owner_user_id')::uuid IS NULL OR owner_user_id = sqlc.narg('owner_user_id'))
+  AND (sqlc.narg('type')::account_type IS NULL OR type = sqlc.narg('type')::account_type)
+  AND (sqlc.narg('visibility')::visibility_type IS NULL OR visibility = sqlc.narg('visibility')::visibility_type)
+  AND (sqlc.narg('is_active')::boolean IS NULL OR is_active = sqlc.narg('is_active'))
+ORDER BY name ASC;
+
 -- name: UpdateAccount :one
 UPDATE accounts
 SET

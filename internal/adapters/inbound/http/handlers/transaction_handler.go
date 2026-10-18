@@ -105,25 +105,21 @@ func (h *TransactionHandler) CreateTransaction(w http.ResponseWriter, r *http.Re
 	_ = json.NewEncoder(w).Encode(dto.ToTransactionResponse(tx))
 }
 
-// ListTransactions handles GET /transactions.
-func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := middleware.TenantIDFromContext(r.Context())
-	if !ok {
-		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
-		return
-	}
-
+// parseTransactionFilter extracts filtering and pagination parameters from the request query string.
+func parseTransactionFilter(r *http.Request) (ports.TransactionFilter, *problem.Detail) {
 	query := r.URL.Query()
 	filter := ports.TransactionFilter{
-		Page:  1,
-		Limit: 50,
+		Page:      1,
+		Limit:     50,
+		SortBy:    "date",
+		SortOrder: "desc",
 	}
 
 	if pageStr := query.Get("page"); pageStr != "" {
 		p, err := strconv.Atoi(pageStr)
 		if err != nil || p < 1 {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'page': must be an integer >= 1."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'page': must be an integer >= 1.")
+			return filter, &prob
 		}
 		filter.Page = p
 	}
@@ -131,8 +127,8 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if limitStr := query.Get("limit"); limitStr != "" {
 		l, err := strconv.Atoi(limitStr)
 		if err != nil || l < 1 || l > 200 {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'limit': must be an integer between 1 and 200."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'limit': must be an integer between 1 and 200.")
+			return filter, &prob
 		}
 		filter.Limit = l
 	}
@@ -140,8 +136,8 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if accStr := query.Get("account_id"); accStr != "" {
 		id, err := uuid.Parse(accStr)
 		if err != nil || id == uuid.Nil {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'account_id': must be a valid UUID."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'account_id': must be a valid UUID.")
+			return filter, &prob
 		}
 		filter.AccountID = &id
 	}
@@ -149,17 +145,26 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if catStr := query.Get("category_id"); catStr != "" {
 		id, err := uuid.Parse(catStr)
 		if err != nil || id == uuid.Nil {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'category_id': must be a valid UUID."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'category_id': must be a valid UUID.")
+			return filter, &prob
 		}
 		filter.CategoryID = &id
+	}
+
+	if uncatStr := query.Get("uncategorized"); uncatStr != "" {
+		val, err := strconv.ParseBool(uncatStr)
+		if err != nil {
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'uncategorized': must be true or false.")
+			return filter, &prob
+		}
+		filter.Uncategorized = &val
 	}
 
 	if fromStr := query.Get("from_date"); fromStr != "" {
 		t, err := time.Parse("2006-01-02", fromStr)
 		if err != nil {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'from_date': must be formatted as YYYY-MM-DD."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'from_date': must be formatted as YYYY-MM-DD.")
+			return filter, &prob
 		}
 		filter.FromDate = &t
 	}
@@ -167,8 +172,8 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if toStr := query.Get("to_date"); toStr != "" {
 		t, err := time.Parse("2006-01-02", toStr)
 		if err != nil {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'to_date': must be formatted as YYYY-MM-DD."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'to_date': must be formatted as YYYY-MM-DD.")
+			return filter, &prob
 		}
 		filter.ToDate = &t
 	}
@@ -176,8 +181,8 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if typeStr := query.Get("type"); typeStr != "" {
 		txType := domain.TransactionType(strings.ToUpper(strings.TrimSpace(typeStr)))
 		if !txType.IsValid() {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'type'."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'type'.")
+			return filter, &prob
 		}
 		filter.Type = &txType
 	}
@@ -185,8 +190,8 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if statusStr := query.Get("status"); statusStr != "" {
 		st := domain.TransactionStatus(strings.ToUpper(strings.TrimSpace(statusStr)))
 		if !st.IsValid() {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'status'."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'status'.")
+			return filter, &prob
 		}
 		filter.Status = &st
 	}
@@ -194,8 +199,8 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 	if visStr := query.Get("visibility"); visStr != "" {
 		vis := domain.Visibility(strings.ToUpper(strings.TrimSpace(visStr)))
 		if !vis.IsValid() {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'visibility'."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'visibility'.")
+			return filter, &prob
 		}
 		filter.Visibility = &vis
 	}
@@ -204,13 +209,38 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 		filter.Search = strings.TrimSpace(searchStr)
 	}
 
+	if sortBy := query.Get("sort_by"); sortBy != "" {
+		filter.SortBy = strings.TrimSpace(sortBy)
+	}
+
+	if sortOrder := query.Get("sort_order"); sortOrder != "" {
+		filter.SortOrder = strings.TrimSpace(sortOrder)
+	}
+
 	if aiReviewStr := query.Get("ai_review_required"); aiReviewStr != "" {
 		val, err := strconv.ParseBool(aiReviewStr)
 		if err != nil {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'ai_review_required': must be true or false."))
-			return
+			prob := problem.NewBadRequest(r.URL.Path, "Invalid query parameter 'ai_review_required': must be true or false.")
+			return filter, &prob
 		}
 		filter.AIReviewRequired = &val
+	}
+
+	return filter, nil
+}
+
+// ListTransactions handles GET /transactions.
+func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return
+	}
+
+	filter, prob := parseTransactionFilter(r)
+	if prob != nil {
+		problem.Render(w, r, *prob)
+		return
 	}
 
 	txs, total, err := h.service.List(r.Context(), tenantID, filter)
@@ -221,6 +251,38 @@ func (h *TransactionHandler) ListTransactions(w http.ResponseWriter, r *http.Req
 
 	pagination := dto.NewPaginationResponse(filter.Page, filter.Limit, total)
 	resp := dto.ToTransactionListResponse(txs, pagination)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// SummarizeTransactions handles GET /transactions/summary.
+func (h *TransactionHandler) SummarizeTransactions(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return
+	}
+
+	filter, prob := parseTransactionFilter(r)
+	if prob != nil {
+		problem.Render(w, r, *prob)
+		return
+	}
+
+	summary, err := h.service.Summarize(r.Context(), tenantID, filter)
+	if err != nil {
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
+		return
+	}
+
+	resp := dto.TransactionSummaryResponse{
+		TotalIncome:  summary.TotalIncome.StringFixed(2),
+		TotalExpense: summary.TotalExpense.StringFixed(2),
+		NetBalance:   summary.NetBalance.StringFixed(2),
+		Count:        summary.Count,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -261,7 +323,7 @@ func (h *TransactionHandler) GetTransaction(w http.ResponseWriter, r *http.Reque
 	_ = json.NewEncoder(w).Encode(dto.ToTransactionResponse(tx))
 }
 
-// UpdateTransaction handles PATCH /transactions/{id}.
+// UpdateTransaction handles PATCH and PUT /transactions/{id}.
 func (h *TransactionHandler) UpdateTransaction(w http.ResponseWriter, r *http.Request) {
 	tenantID, ok := middleware.TenantIDFromContext(r.Context())
 	if !ok {
@@ -281,7 +343,6 @@ func (h *TransactionHandler) UpdateTransaction(w http.ResponseWriter, r *http.Re
 		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
 		return
 	}
-
 
 	if invalidParams := req.Validate(); len(invalidParams) > 0 {
 		prob := problem.NewValidationFailed(r.URL.Path, "Transaction update validation failed.", invalidParams)
@@ -303,6 +364,11 @@ func (h *TransactionHandler) UpdateTransaction(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	if req.AccountID != nil && strings.TrimSpace(*req.AccountID) != "" {
+		aid, _ := uuid.Parse(strings.TrimSpace(*req.AccountID))
+		tx.AccountID = aid
+	}
+
 	if req.CategoryID != nil {
 		trimmed := strings.TrimSpace(*req.CategoryID)
 		if trimmed == "" {
@@ -312,6 +378,20 @@ func (h *TransactionHandler) UpdateTransaction(w http.ResponseWriter, r *http.Re
 			tx.CategoryID = &cid
 			tx.IsManuallyVerified = true
 		}
+	}
+
+	if req.Date != nil && strings.TrimSpace(*req.Date) != "" {
+		parsedDate, _ := dto.ParseDate(*req.Date)
+		tx.Date = parsedDate
+	}
+
+	if req.Type != nil && strings.TrimSpace(*req.Type) != "" {
+		tx.Type = domain.TransactionType(strings.ToUpper(strings.TrimSpace(*req.Type)))
+	}
+
+	if req.Amount != nil && strings.TrimSpace(*req.Amount) != "" {
+		amt, _ := decimal.NewFromString(strings.TrimSpace(*req.Amount))
+		tx.Amount = amt
 	}
 
 	if req.Description != nil {
@@ -335,6 +415,17 @@ func (h *TransactionHandler) UpdateTransaction(w http.ResponseWriter, r *http.Re
 		tx.Metadata = req.Metadata
 	}
 
+	// Recompute fingerprint
+	tx.Fingerprint = domain.GenerateTransactionFingerprint(
+		tx.TenantID,
+		tx.AccountID,
+		tx.Date,
+		tx.Amount,
+		tx.CleanDescription,
+		tx.ExternalID,
+		tx.SequenceIndex,
+	)
+
 	tx.UpdatedAt = time.Now().UTC()
 
 	if err := tx.Validate(); err != nil {
@@ -350,6 +441,78 @@ func (h *TransactionHandler) UpdateTransaction(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(dto.ToTransactionResponse(tx))
+}
+
+// BatchDeleteTransactions handles POST /transactions/batch-delete.
+func (h *TransactionHandler) BatchDeleteTransactions(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return
+	}
+
+	var req dto.BatchDeleteTransactionsRequest
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
+		return
+	}
+
+	if invalidParams := req.Validate(); len(invalidParams) > 0 {
+		problem.Render(w, r, problem.NewValidationFailed(r.URL.Path, "Batch delete validation failed.", invalidParams))
+		return
+	}
+
+	ids := make([]uuid.UUID, len(req.IDs))
+	for i, idStr := range req.IDs {
+		ids[i], _ = uuid.Parse(strings.TrimSpace(idStr))
+	}
+
+	if err := h.service.BatchDelete(r.Context(), tenantID, ids); err != nil {
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// BatchUpdateCategory handles POST /transactions/batch-category.
+func (h *TransactionHandler) BatchUpdateCategory(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return
+	}
+
+	var req dto.BatchUpdateCategoryRequest
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
+		return
+	}
+
+	if invalidParams := req.Validate(); len(invalidParams) > 0 {
+		problem.Render(w, r, problem.NewValidationFailed(r.URL.Path, "Batch update category validation failed.", invalidParams))
+		return
+	}
+
+	ids := make([]uuid.UUID, len(req.IDs))
+	for i, idStr := range req.IDs {
+		ids[i], _ = uuid.Parse(strings.TrimSpace(idStr))
+	}
+
+	var catIDPtr *uuid.UUID
+	if req.CategoryID != nil && strings.TrimSpace(*req.CategoryID) != "" {
+		cid, _ := uuid.Parse(strings.TrimSpace(*req.CategoryID))
+		catIDPtr = &cid
+	}
+
+	if err := h.service.BatchUpdateCategory(r.Context(), tenantID, ids, catIDPtr); err != nil {
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{"updated": len(ids)})
 }
 
 // DeleteTransaction handles DELETE /transactions/{id}.
