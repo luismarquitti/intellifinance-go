@@ -1,0 +1,26 @@
+{
+  "task:ingest_statement": {
+    "job_id": "10000000-0000-4000-8000-000000000001",
+    "tenant_id": "10000000-0000-4000-8000-000000000002",
+    "account_id": "10000000-0000-4000-8000-000000000003",
+    "storage_uri": "gs://synthetic-statements/tenant-test/statement.ofx",
+    "file_type": "OFX",
+    "source_filename": "statement.ofx",
+    "user_id": "10000000-0000-4000-8000-000000000004",
+    "uploaded_at": "2026-01-02T12:00:00Z"
+  },
+  "task:sync_open_finance": {
+    "item_id": "10000000-0000-4000-8000-000000000005",
+    "tenant_id": "10000000-0000-4000-8000-000000000002",
+    "sync_type": "INCREMENTAL",
+    "from_date": "2026-01-01",
+    "to_date": "2026-01-02",
+    "triggered_by": "WEBHOOK"
+  },
+  "task:categorize_transaction": {
+    "tenant_id": "10000000-0000-4000-8000-000000000002",
+    "transaction_ids": ["10000000-0000-4000-8000-000000000006"],
+    "model_preference": "synthetic-model",
+    "fallback_allowed": true
+  }
+}

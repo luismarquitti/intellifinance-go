@@ -121,6 +121,37 @@ go run cmd/fixturegen/main.go
 go test -v ./...
 ```
 
+### Asynq worker (development)
+
+Install dependencies with `go mod tidy`, then run the entire worker package:
+
+```bash
+ENVIRONMENT=development REDIS_ADDR=localhost:6379 go run ./cmd/worker
+go test -v -race ./...
+golangci-lint run
+```
+
+Configure Redis credentials using environment variables (see `.env.example`);
+the worker does not load `.env` automatically. `REDIS_URL` overrides `REDIS_ADDR`
+and accepts `host:port`, `redis://` or `rediss://`. `REDIS_PASSWORD` and `REDIS_DB`
+override the corresponding URI values. Concurrency defaults to 10. Shutdown
+defaults to 30 seconds and can be shortened using
+`WORKER_SHUTDOWN_TIMEOUT_SECONDS` (1–30).
+
+The queue adapter routes banking sync to `critical`, ingestion to `default`,
+and categorization to `low`, with server weights 6/3/1 and five retries by
+default. Retry delays start at 5 seconds, double with ±20% jitter, and never
+exceed 300 seconds. Permanent payload errors skip retries. Asynq's `archived`
+state is the DLQ; inspect it using Asynqmon or an Asynq inspector. `SIGINT` and
+`SIGTERM` stop dequeueing and drain active jobs within the shutdown window.
+
+The application pipelines are not implemented in this workspace yet. Wire
+implementations of the three interfaces in `internal/ports/task_payloads.go`
+into `TaskHandlers` in `cmd/worker/main.go`. Until then, the executable logs a
+warning and returns `ErrHandlerUnavailable` for valid tasks, which are retried
+and eventually archived. Invalid payloads are still rejected immediately;
+no unprocessed task is acknowledged as successful.
+
 ---
 
 ## 📄 License
