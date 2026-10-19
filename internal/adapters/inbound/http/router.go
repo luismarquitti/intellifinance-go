@@ -13,11 +13,15 @@ import (
 
 // RouterConfig contains dependencies and configuration options for assembling the API router.
 type RouterConfig struct {
-	AccountService     ports.AccountService
-	CategoryService    ports.CategoryService
-	TransactionService ports.TransactionService
-	Logger             *slog.Logger
-	CORSOptions        *cors.Options
+	AccountService            ports.AccountService
+	CategoryService           ports.CategoryService
+	TransactionService        ports.TransactionService
+	OpenFinanceWebhookHandler *handlers.OpenFinanceWebhookHandler
+	OpenFinanceTenantResolver ports.OpenFinanceTenantResolver
+	TaskQueue                 ports.TaskQueue
+	OpenFinanceWebhookSecret  string
+	Logger                    *slog.Logger
+	CORSOptions               *cors.Options
 }
 
 // NewRouter builds and configures the Chi v5 router with all required middlewares,
@@ -54,6 +58,22 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	accountHandler := handlers.NewAccountHandler(cfg.AccountService)
 	categoryHandler := handlers.NewCategoryHandler(cfg.CategoryService)
 	transactionHandler := handlers.NewTransactionHandler(cfg.TransactionService)
+
+	openFinanceHandler := cfg.OpenFinanceWebhookHandler
+	if openFinanceHandler == nil && cfg.OpenFinanceTenantResolver != nil && cfg.TaskQueue != nil {
+		openFinanceHandler = handlers.NewOpenFinanceWebhookHandler(
+			cfg.OpenFinanceWebhookSecret,
+			cfg.OpenFinanceTenantResolver,
+			cfg.TaskQueue,
+			cfg.Logger,
+		)
+	}
+
+	// 3. Open Finance Webhook endpoints (exempt from TenantContextMiddleware)
+	if openFinanceHandler != nil {
+		r.Post("/open-finance/webhook", openFinanceHandler.HandleWebhook)
+		r.Post("/api/v1/open-finance/webhook", openFinanceHandler.HandleWebhook)
+	}
 
 	// Route registration helper for protected endpoints
 	registerAPIRoutes := func(sub chi.Router) {
