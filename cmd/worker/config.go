@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -45,6 +46,13 @@ func loadConfig(getenv func(string) string) (Config, error) {
 		cfg.Redis, ok = opt.(asynq.RedisClientOpt)
 		if !ok || strings.HasPrefix(addr, "unix:") {
 			return Config{}, fmt.Errorf("REDIS_URL must use redis:// or rediss://")
+		}
+		parsedURL, err := url.Parse(addr)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid REDIS_URL")
+		}
+		if parsedURL.User != nil {
+			cfg.Redis.Username = parsedURL.User.Username()
 		}
 	} else {
 		cfg.Redis.Addr = addr
