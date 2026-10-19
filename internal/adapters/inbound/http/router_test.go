@@ -92,7 +92,7 @@ func TestRouter_E2E(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	tenantID := uuid.New()
-	webhookSecret := "whsec_router_test_secret"
+	webhookSecret := "test-router-" + uuid.NewString()
 
 	router := inboundHttp.NewRouter(inboundHttp.RouterConfig{
 		AccountService:            &dummyAccountService{},
