@@ -124,14 +124,9 @@ func (h *OpenFinanceWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http
 
 	now := h.nowFunc()
 	webhookTime := time.Unix(ts, 0)
-	drift := now.Sub(webhookTime)
-	if drift < 0 {
-		drift = -drift
-	}
-
-	if drift > MaxTimestampDrift {
+	if webhookTime.Before(now.Add(-MaxTimestampDrift)) || webhookTime.After(now.Add(MaxTimestampDrift)) {
 		h.logger.WarnContext(r.Context(), "Webhook unauthorized: timestamp drift exceeds threshold",
-			"drift_seconds", drift.Seconds(),
+			"timestamp", timestampStr,
 			"max_allowed", MaxTimestampDrift.Seconds(),
 		)
 		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Webhook timestamp out of bounds or expired."))

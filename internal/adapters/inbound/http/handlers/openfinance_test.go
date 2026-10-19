@@ -408,6 +408,39 @@ func TestOpenFinanceWebhookHandler_Timestamp_FutureDrift_Unauthorized(t *testing
 	}
 }
 
+func TestOpenFinanceWebhookHandler_Timestamp_ExtremeFuture_Unauthorized(t *testing.T) {
+	t.Parallel()
+
+	resolver := newMockTenantResolver()
+	resolver.setTenant("item_extreme_future", uuid.New())
+	queue := newMockTaskQueue()
+	fixedNow := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	handler := handlers.NewOpenFinanceWebhookHandler(
+		testWebhookSecret,
+		resolver,
+		queue,
+		nil,
+		handlers.WithWebhookClock(func() time.Time { return fixedNow }),
+	)
+
+	const timestamp = "100000000000"
+	payload := []byte(`{"event":"item/updated","itemId":"item_extreme_future"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewReader(payload))
+	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	req.Header.Set(handlers.HeaderPluggyTimestamp, timestamp)
+	req.Header.Set(handlers.HeaderPluggySignature, computePluggyHMAC(testWebhookSecret, timestamp, payload))
+
+	rec := httptest.NewRecorder()
+	handler.HandleWebhook(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401 Unauthorized, got %d", rec.Code)
+	}
+	if tasks := queue.getTasks(); len(tasks) != 0 {
+		t.Fatalf("expected no tasks to be enqueued, got %d", len(tasks))
+	}
+}
+
 // 10. Malformed X-Pluggy-Timestamp returns 401 Unauthorized
 func TestOpenFinanceWebhookHandler_Timestamp_Malformed_Unauthorized(t *testing.T) {
 	t.Parallel()
