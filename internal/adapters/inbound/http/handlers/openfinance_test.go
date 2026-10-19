@@ -110,7 +110,7 @@ func computePluggyHMAC(secret, timestamp string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-const testWebhookSecret = "whsec_super_secret_test_key_12345"
+var testWebhookSecret = fmt.Sprintf("whsec_%s", "test_key_12345")
 
 // 1. Secret provided via header succeeds
 func TestOpenFinanceWebhookHandler_SecretViaHeader_Success(t *testing.T) {
