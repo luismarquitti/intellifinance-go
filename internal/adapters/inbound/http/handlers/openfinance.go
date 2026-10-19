@@ -109,60 +109,60 @@ func (h *OpenFinanceWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http
 
 	// 2. Replay Protection: Validate X-Pluggy-Timestamp header (maximum 300s / 5m drift)
 	timestampStr := r.Header.Get(HeaderPluggyTimestamp)
-	if timestampStr != "" {
-		ts, err := strconv.ParseInt(timestampStr, 10, 64)
-		if err != nil {
-			h.logger.WarnContext(r.Context(), "Webhook unauthorized: malformed timestamp header",
-				"timestamp", timestampStr,
-			)
-			problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Malformed webhook timestamp."))
-			return
-		}
-
-		now := h.nowFunc()
-		webhookTime := time.Unix(ts, 0)
-		drift := now.Sub(webhookTime)
-		if drift < 0 {
-			drift = -drift
-		}
-
-		if drift > MaxTimestampDrift {
-			h.logger.WarnContext(r.Context(), "Webhook unauthorized: timestamp drift exceeds threshold",
-				"drift_seconds", drift.Seconds(),
-				"max_allowed", MaxTimestampDrift.Seconds(),
-			)
-			problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Webhook timestamp out of bounds or expired."))
-			return
-		}
+	if timestampStr == "" {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing webhook timestamp."))
+		return
+	}
+	ts, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil {
+		h.logger.WarnContext(r.Context(), "Webhook unauthorized: malformed timestamp header",
+			"timestamp", timestampStr,
+		)
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Malformed webhook timestamp."))
+		return
 	}
 
-	// 3. HMAC-SHA256 Signature Validation (when X-Pluggy-Signature header is provided)
+	now := h.nowFunc()
+	webhookTime := time.Unix(ts, 0)
+	drift := now.Sub(webhookTime)
+	if drift < 0 {
+		drift = -drift
+	}
+
+	if drift > MaxTimestampDrift {
+		h.logger.WarnContext(r.Context(), "Webhook unauthorized: timestamp drift exceeds threshold",
+			"drift_seconds", drift.Seconds(),
+			"max_allowed", MaxTimestampDrift.Seconds(),
+		)
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Webhook timestamp out of bounds or expired."))
+		return
+	}
+
+	// 3. HMAC-SHA256 Signature Validation binds the timestamp and body before processing.
 	sigHeader := r.Header.Get(HeaderPluggySignature)
-	if sigHeader != "" {
-		if timestampStr == "" {
-			problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Webhook signature requires X-Pluggy-Timestamp header."))
-			return
-		}
+	if sigHeader == "" {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing webhook signature."))
+		return
+	}
 
-		bodyBytes, err := io.ReadAll(r.Body)
-		if err != nil {
-			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Failed to read request body."))
-			return
-		}
-		// Reset request body so downstream JSON decoder can read it
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Failed to read request body."))
+		return
+	}
+	// Reset request body so downstream JSON decoder can read it
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-		if !h.validateHMACConstantTime(timestampStr, bodyBytes, sigHeader) {
-			h.logger.WarnContext(r.Context(), "Webhook unauthorized: HMAC signature mismatch")
-			problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Invalid webhook signature."))
-			return
-		}
+	if !h.validateHMACConstantTime(timestampStr, bodyBytes, sigHeader) {
+		h.logger.WarnContext(r.Context(), "Webhook unauthorized: HMAC signature mismatch")
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Invalid webhook signature."))
+		return
 	}
 
 	// 4. Decode JSON payload
 	var payload PluggyWebhookPayload
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		h.logger.WarnContext(r.Context(), "Webhook bad request: malformed JSON payload", "err", err)
+	if decodeErr := json.NewDecoder(r.Body).Decode(&payload); decodeErr != nil {
+		h.logger.WarnContext(r.Context(), "Webhook bad request: malformed JSON payload", "err", decodeErr)
 		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
 		return
 	}

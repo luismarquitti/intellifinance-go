@@ -110,6 +110,17 @@ func computePluggyHMAC(secret, timestamp string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+func signWebhookRequest(req *http.Request, timestamp time.Time) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		panic(err)
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	ts := fmt.Sprintf("%d", timestamp.Unix())
+	req.Header.Set(handlers.HeaderPluggyTimestamp, ts)
+	req.Header.Set(handlers.HeaderPluggySignature, computePluggyHMAC(testWebhookSecret, ts, body))
+}
+
 var testWebhookSecret = fmt.Sprintf("whsec_%s", "test_key_12345")
 
 // 1. Secret provided via header succeeds
@@ -129,6 +140,7 @@ func TestOpenFinanceWebhookHandler_SecretViaHeader_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(payload))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	signWebhookRequest(req, time.Now())
 
 	rec := httptest.NewRecorder()
 	handler.HandleWebhook(rec, req)
@@ -177,6 +189,7 @@ func TestOpenFinanceWebhookHandler_SecretViaQueryParam_Success(t *testing.T) {
 	url := fmt.Sprintf("/api/v1/open-finance/webhook?token=%s", testWebhookSecret)
 	req := httptest.NewRequest(http.MethodPost, url, bytes.NewBufferString(payload))
 	req.Header.Set("Content-Type", "application/json")
+	signWebhookRequest(req, time.Now())
 
 	rec := httptest.NewRecorder()
 	handler.HandleWebhook(rec, req)
@@ -315,7 +328,9 @@ func TestOpenFinanceWebhookHandler_Timestamp_ValidWindow_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(payload))
 	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
-	req.Header.Set(handlers.HeaderPluggyTimestamp, fmt.Sprintf("%d", validTime.Unix()))
+	timestamp := fmt.Sprintf("%d", validTime.Unix())
+	req.Header.Set(handlers.HeaderPluggyTimestamp, timestamp)
+	req.Header.Set(handlers.HeaderPluggySignature, computePluggyHMAC(testWebhookSecret, timestamp, []byte(payload)))
 
 	rec := httptest.NewRecorder()
 	handler.HandleWebhook(rec, req)
@@ -414,6 +429,22 @@ func TestOpenFinanceWebhookHandler_Timestamp_Malformed_Unauthorized(t *testing.T
 	}
 }
 
+func TestOpenFinanceWebhookHandler_TimestampMissing_UnauthorizedWithoutEnqueue(t *testing.T) {
+	t.Parallel()
+	queue := newMockTaskQueue()
+	handler := handlers.NewOpenFinanceWebhookHandler(testWebhookSecret, newMockTenantResolver(), queue, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"item_no_timestamp"}`))
+	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	rec := httptest.NewRecorder()
+	handler.HandleWebhook(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized, got %d", rec.Code)
+	}
+	if got := len(queue.getTasks()); got != 0 {
+		t.Fatalf("expected no enqueued tasks, got %d", got)
+	}
+}
+
 // 11. Valid HMAC-SHA256 signature succeeds
 func TestOpenFinanceWebhookHandler_HMACSignature_Valid_Success(t *testing.T) {
 	t.Parallel()
@@ -480,6 +511,43 @@ func TestOpenFinanceWebhookHandler_HMACSignature_Invalid_Unauthorized(t *testing
 	}
 }
 
+func TestOpenFinanceWebhookHandler_HMACSignatureMissing_UnauthorizedWithoutEnqueue(t *testing.T) {
+	t.Parallel()
+	queue := newMockTaskQueue()
+	handler := handlers.NewOpenFinanceWebhookHandler(testWebhookSecret, newMockTenantResolver(), queue, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"item_no_signature"}`))
+	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	req.Header.Set(handlers.HeaderPluggyTimestamp, fmt.Sprintf("%d", time.Now().Unix()))
+	rec := httptest.NewRecorder()
+	handler.HandleWebhook(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized, got %d", rec.Code)
+	}
+	if got := len(queue.getTasks()); got != 0 {
+		t.Fatalf("expected no enqueued tasks, got %d", got)
+	}
+}
+
+func TestOpenFinanceWebhookHandler_HMACSignatureRemovedAfterBodyTampering_Unauthorized(t *testing.T) {
+	t.Parallel()
+	queue := newMockTaskQueue()
+	handler := handlers.NewOpenFinanceWebhookHandler(testWebhookSecret, newMockTenantResolver(), queue, nil)
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"tampered"}`))
+	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	req.Header.Set(handlers.HeaderPluggyTimestamp, timestamp)
+	// Simulate an attacker changing a captured delivery and removing its signature.
+	req.Header.Del(handlers.HeaderPluggySignature)
+	rec := httptest.NewRecorder()
+	handler.HandleWebhook(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized, got %d", rec.Code)
+	}
+	if got := len(queue.getTasks()); got != 0 {
+		t.Fatalf("expected no enqueued tasks, got %d", got)
+	}
+}
+
 // 13. Malformed JSON payload returns 400 Bad Request
 func TestOpenFinanceWebhookHandler_MalformedJSONPayload_BadRequest(t *testing.T) {
 	t.Parallel()
@@ -490,6 +558,7 @@ func TestOpenFinanceWebhookHandler_MalformedJSONPayload_BadRequest(t *testing.T)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{unclosed_json:`))
 	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	signWebhookRequest(req, time.Now())
 
 	rec := httptest.NewRecorder()
 	handler.HandleWebhook(rec, req)
@@ -509,6 +578,7 @@ func TestOpenFinanceWebhookHandler_EmptyItemID_BadRequest(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"   "}`))
 	req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+	signWebhookRequest(req, time.Now())
 
 	rec := httptest.NewRecorder()
 	handler.HandleWebhook(rec, req)
@@ -530,6 +600,7 @@ func TestOpenFinanceWebhookHandler_TenantNotFound_NotFound(t *testing.T) {
 	t.Run("Unknown item ID", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"unknown_item_id"}`))
 		req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+		signWebhookRequest(req, time.Now())
 
 		rec := httptest.NewRecorder()
 		handler.HandleWebhook(rec, req)
@@ -542,6 +613,7 @@ func TestOpenFinanceWebhookHandler_TenantNotFound_NotFound(t *testing.T) {
 	t.Run("Resolver returns error", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"error_item_id"}`))
 		req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+		signWebhookRequest(req, time.Now())
 
 		rec := httptest.NewRecorder()
 		handler.HandleWebhook(rec, req)
@@ -567,6 +639,7 @@ func TestOpenFinanceWebhookHandler_EventTypes_FullVsIncremental(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/created","itemId":"item_created_test"}`))
 		req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+		signWebhookRequest(req, time.Now())
 
 		rec := httptest.NewRecorder()
 		handler.HandleWebhook(rec, req)
@@ -597,6 +670,7 @@ func TestOpenFinanceWebhookHandler_EventTypes_FullVsIncremental(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(`{"event":"item/updated","itemId":"item_queue_err"}`))
 		req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+		signWebhookRequest(req, time.Now())
 
 		rec := httptest.NewRecorder()
 		handler.HandleWebhook(rec, req)
@@ -636,6 +710,7 @@ func TestOpenFinanceWebhookHandler_ConcurrentStress_64Goroutines(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(payload))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set(handlers.HeaderWebhookSecret, testWebhookSecret)
+			signWebhookRequest(req, time.Now())
 
 			rec := httptest.NewRecorder()
 			handler.HandleWebhook(rec, req)
