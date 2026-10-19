@@ -3,12 +3,17 @@ package http_test
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	inboundHttp "github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http"
@@ -93,6 +98,14 @@ func TestRouter_E2E(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	tenantID := uuid.New()
 	webhookSecret := "test-router-" + uuid.NewString()
+	signWebhook := func(req *http.Request, body string) {
+		timestamp := fmt.Sprintf("%d", time.Now().Unix())
+		mac := hmac.New(sha256.New, []byte(webhookSecret))
+		_, _ = mac.Write([]byte(timestamp + "."))
+		_, _ = mac.Write([]byte(body))
+		req.Header.Set("X-Pluggy-Timestamp", timestamp)
+		req.Header.Set("X-Pluggy-Signature", hex.EncodeToString(mac.Sum(nil)))
+	}
 
 	router := inboundHttp.NewRouter(inboundHttp.RouterConfig{
 		AccountService:            &dummyAccountService{},
@@ -189,6 +202,7 @@ func TestRouter_E2E(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-IntelliFinance-Webhook-Secret", webhookSecret)
+		signWebhook(req, body)
 		// Explicitly DO NOT set X-Tenant-ID header
 		router.ServeHTTP(rec, req)
 
@@ -203,6 +217,7 @@ func TestRouter_E2E(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/open-finance/webhook", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-IntelliFinance-Webhook-Secret", webhookSecret)
+		signWebhook(req, body)
 		// Explicitly DO NOT set X-Tenant-ID header
 		router.ServeHTTP(rec, req)
 
@@ -223,4 +238,3 @@ func TestRouter_E2E(t *testing.T) {
 		}
 	})
 }
-
