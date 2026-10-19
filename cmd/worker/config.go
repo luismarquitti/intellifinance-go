@@ -37,6 +37,13 @@ func loadConfig(getenv func(string) string) (Config, error) {
 		addr = "192.168.3.10:6379"
 	}
 	if strings.Contains(addr, "://") {
+		parsedURL, err := url.Parse(addr)
+		if err != nil {
+			return Config{}, fmt.Errorf("invalid REDIS_URL")
+		}
+		if parsedURL.Scheme != "redis" && parsedURL.Scheme != "rediss" {
+			return Config{}, fmt.Errorf("REDIS_URL must use redis:// or rediss://")
+		}
 		opt, err := asynq.ParseRedisURI(addr)
 		if err != nil {
 			// URI parser errors can contain credentials. Do not include the URI.
@@ -44,12 +51,8 @@ func loadConfig(getenv func(string) string) (Config, error) {
 		}
 		var ok bool
 		cfg.Redis, ok = opt.(asynq.RedisClientOpt)
-		if !ok || strings.HasPrefix(addr, "unix:") {
+		if !ok {
 			return Config{}, fmt.Errorf("REDIS_URL must use redis:// or rediss://")
-		}
-		parsedURL, err := url.Parse(addr)
-		if err != nil {
-			return Config{}, fmt.Errorf("invalid REDIS_URL")
 		}
 		if parsedURL.User != nil {
 			cfg.Redis.Username = parsedURL.User.Username()

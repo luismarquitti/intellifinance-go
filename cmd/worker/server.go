@@ -30,10 +30,13 @@ type serverLifecycle interface {
 
 // WorkerServer owns the Asynq server and its immutable handler registry.
 type WorkerServer struct {
-	server serverLifecycle
-	mux    *asynq.ServeMux
-	logger *slog.Logger
-	once   sync.Once
+	server  serverLifecycle
+	mux     *asynq.ServeMux
+	logger  *slog.Logger
+	mu      sync.Mutex
+	started bool
+	closed  bool
+	once    sync.Once
 }
 
 // NewWorkerServer binds application ports to all three canonical task types.
@@ -74,11 +77,22 @@ func serverConfig(cfg Config, logger *slog.Logger) asynq.Config {
 	}
 }
 
-// Start starts processing without installing signal handlers.
+// Start starts processing once without installing signal handlers.
+// It is safe to call concurrently with Start or Shutdown; a closed worker
+// cannot be restarted.
 func (s *WorkerServer) Start() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return fmt.Errorf("start worker: %w", asynq.ErrServerClosed)
+	}
+	if s.started {
+		return fmt.Errorf("start worker: worker is already running")
+	}
 	if err := s.server.Start(s.mux); err != nil {
 		return fmt.Errorf("start worker: %w", err)
 	}
+	s.started = true
 	return nil
 }
 
@@ -99,11 +113,21 @@ func (s *WorkerServer) Run(ctx context.Context) error {
 }
 
 // Shutdown stops fetching first, then lets Asynq drain within ShutdownTimeout.
+// Concurrent calls wait for the same drain to finish.
 func (s *WorkerServer) Shutdown() {
 	s.once.Do(func() {
-		s.server.Stop()
+		s.stopFetching()
 		s.logger.Info("worker draining")
 		s.server.Shutdown()
 		s.logger.Info("worker stopped")
 	})
+}
+
+func (s *WorkerServer) stopFetching() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Serialize Stop with Start so no processors can start after Stop returns.
+	// Mark closed even if Shutdown is called before the first Start.
+	s.closed = true
+	s.server.Stop()
 }

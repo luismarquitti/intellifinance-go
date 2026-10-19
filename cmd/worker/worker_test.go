@@ -80,6 +80,7 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{"REDIS_DB", "-1"}, {"REDIS_DB", "not-an-int"},
 		{"REDIS_URL", "localhost"}, {"REDIS_URL", ":6379"}, {"REDIS_URL", "localhost:0"}, {"REDIS_URL", "localhost:65536"},
 		{"REDIS_URL", "https://synthetic:secret@localhost:6379"}, {"REDIS_URL", "redis://synthetic:secret@localhost:6379/not-a-db"},
+		{"REDIS_URL", "redis-socket:///tmp/synthetic:6379"},
 		{"ENVIRONMENT", "production"},
 	} {
 		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
