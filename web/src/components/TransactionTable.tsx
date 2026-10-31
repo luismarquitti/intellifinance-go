@@ -287,7 +287,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
       <div className="p-4 border-t border-[#2C362F] flex flex-wrap items-center justify-between gap-3 text-xs text-[#8E9E92]">
         <div>
           Mostrando página <span className="font-bold text-[#E8EFEA]">{pagination.page}</span> de{' '}
-          <span className="font-bold text-[#E8EFEA]">{pagination.total_pages || 1}</span> ({pagination.total_items} registros no total)
+          <span className="font-bold text-[#E8EFEA]">{pagination.total_pages || 1}</span> ({pagination.total} registros no total)
         </div>
 
         <div className="flex items-center gap-2">

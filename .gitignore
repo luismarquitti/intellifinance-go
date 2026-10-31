@@ -53,6 +53,10 @@ uploads/
 .DS_Store
 Thumbs.db
 
+# Python verification helpers
+__pycache__/
+*.py[cod]
+
 # Local database persistent volumes
 postgres-data/
 redis-data/

@@ -200,11 +200,11 @@ func exportItauOFX(path string, txs []SyntheticTransaction) error {
 		dateStr := tx.Date.Format("20060102") + "120000[-3:BRT]"
 
 		buf.WriteString("          <STMTTRN>\n")
-		buf.WriteString(fmt.Sprintf("            <TRNTYPE>%s\n", trnType))
-		buf.WriteString(fmt.Sprintf("            <DTPOSTED>%s\n", dateStr))
-		buf.WriteString(fmt.Sprintf("            <TRNAMT>%s\n", tx.Amount.StringFixed(2)))
-		buf.WriteString(fmt.Sprintf("            <FITID>%s\n", tx.FITID))
-		buf.WriteString(fmt.Sprintf("            <MEMO>%s\n", tx.Description))
+		fmt.Fprintf(&buf, "            <TRNTYPE>%s\n", trnType)
+		fmt.Fprintf(&buf, "            <DTPOSTED>%s\n", dateStr)
+		fmt.Fprintf(&buf, "            <TRNAMT>%s\n", tx.Amount.StringFixed(2))
+		fmt.Fprintf(&buf, "            <FITID>%s\n", tx.FITID)
+		fmt.Fprintf(&buf, "            <MEMO>%s\n", tx.Description)
 		buf.WriteString("          </STMTTRN>\n")
 	}
 
@@ -230,7 +230,7 @@ func exportItauCSV(path string, txs []SyntheticTransaction) error {
 	for _, tx := range txs {
 		dateStr := tx.Date.Format("02/01/2006")
 		amountStr := formatBRLDecimal(tx.Amount.StringFixed(2))
-		buf.WriteString(fmt.Sprintf("%s;%s;%s;%s;%s\n", dateStr, tx.Description, amountStr, tx.Category, tx.FITID))
+		fmt.Fprintf(&buf, "%s;%s;%s;%s;%s\n", dateStr, tx.Description, amountStr, tx.Category, tx.FITID)
 	}
 
 	return os.WriteFile(path, buf.Bytes(), 0600)
@@ -252,7 +252,7 @@ func exportNubankCSV(path string, txs []SyntheticTransaction) error {
 		dateStr := tx.Date.Format("2006-01-02")
 		// Inverted Nubank credit sign logic
 		nubankAmount := tx.Amount.Neg().StringFixed(2)
-		buf.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", dateStr, strings.ToLower(tx.Category), tx.Description, nubankAmount))
+		fmt.Fprintf(&buf, "%s,%s,%s,%s\n", dateStr, strings.ToLower(tx.Category), tx.Description, nubankAmount)
 	}
 
 	return os.WriteFile(path, buf.Bytes(), 0600)

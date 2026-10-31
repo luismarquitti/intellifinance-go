@@ -62,22 +62,27 @@ func (m *mockAccountRepo) UpdateBalance(ctx context.Context, tenantID, id uuid.U
 }
 
 type mockTxRepo struct {
-	txs map[uuid.UUID]*domain.Transaction
+	txs      map[uuid.UUID]*domain.Transaction
+	accounts *mockAccountRepo
 }
 
-func newMockTxRepo() *mockTxRepo {
-	return &mockTxRepo{txs: make(map[uuid.UUID]*domain.Transaction)}
+func newMockTxRepo(accounts *mockAccountRepo) *mockTxRepo {
+	return &mockTxRepo{txs: make(map[uuid.UUID]*domain.Transaction), accounts: accounts}
 }
 
 func (m *mockTxRepo) Create(ctx context.Context, tx *domain.Transaction) error {
 	clone := *tx
 	m.txs[tx.ID] = &clone
+	if tx.Status.AffectsBalance() {
+		return m.accounts.UpdateBalance(ctx, tx.TenantID, tx.AccountID, tx.Amount)
+	}
 	return nil
 }
 func (m *mockTxRepo) BatchCreate(ctx context.Context, txs []*domain.Transaction) error {
 	for _, tx := range txs {
-		clone := *tx
-		m.txs[tx.ID] = &clone
+		if err := m.Create(ctx, tx); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -109,10 +114,11 @@ func (m *mockTxRepo) Summarize(ctx context.Context, tenantID uuid.UUID, filter p
 			continue
 		}
 		summary.Count++
-		if tx.Type == domain.TransactionTypeIncome {
+		switch tx.Type {
+		case domain.TransactionTypeIncome:
 			summary.TotalIncome = summary.TotalIncome.Add(tx.Amount)
 			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
-		} else if tx.Type == domain.TransactionTypeExpense {
+		case domain.TransactionTypeExpense:
 			summary.TotalExpense = summary.TotalExpense.Add(tx.Amount.Abs())
 			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
 		}
@@ -120,17 +126,25 @@ func (m *mockTxRepo) Summarize(ctx context.Context, tenantID uuid.UUID, filter p
 	return summary, nil
 }
 func (m *mockTxRepo) Update(ctx context.Context, tx *domain.Transaction) error {
-	clone := *tx
-	m.txs[tx.ID] = &clone
-	return nil
+	if err := m.Delete(ctx, tx.TenantID, tx.ID); err != nil {
+		return err
+	}
+	return m.Create(ctx, tx)
 }
 func (m *mockTxRepo) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	if tx, ok := m.txs[id]; ok && tx.Status.AffectsBalance() {
+		if err := m.accounts.UpdateBalance(ctx, tenantID, tx.AccountID, tx.Amount.Neg()); err != nil {
+			return err
+		}
+	}
 	delete(m.txs, id)
 	return nil
 }
 func (m *mockTxRepo) BatchDelete(ctx context.Context, tenantID uuid.UUID, ids []uuid.UUID) error {
 	for _, id := range ids {
-		delete(m.txs, id)
+		if err := m.Delete(ctx, tenantID, id); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -168,7 +182,7 @@ func TestCSVIngestionService_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 
 	accRepo := newMockAccountRepo()
-	txRepo := newMockTxRepo()
+	txRepo := newMockTxRepo(accRepo)
 	parser := parsers.NewCSVParser()
 
 	acc, err := domain.NewAccount(tenantID, userID, "NuBank", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
@@ -211,13 +225,13 @@ func TestTransactionService_BalanceSyncOnDeleteAndUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	accRepo := newMockAccountRepo()
-	txRepo := newMockTxRepo()
+	txRepo := newMockTxRepo(accRepo)
 
 	acc, err := domain.NewAccount(tenantID, userID, "Itau", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
 	require.NoError(t, err)
 	require.NoError(t, accRepo.Create(ctx, acc))
 
-	txSvc := app.NewTransactionService(txRepo, accRepo)
+	txSvc := app.NewTransactionService(txRepo)
 
 	// Create Expense of -100.00
 	tx, err := domain.NewTransaction(domain.NewTransactionParams{

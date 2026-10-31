@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
 	"github.com/luismarquitti/intellifinance-go/internal/ports"
-	"github.com/shopspring/decimal"
 )
 
 var _ ports.CSVIngestionService = (*CSVIngestionService)(nil)
@@ -79,7 +78,7 @@ func (s *CSVIngestionService) IngestCSV(
 			txType = domain.TransactionTypeIncome
 		}
 
-		tx, err := domain.NewTransaction(domain.NewTransactionParams{
+		tx, transactionErr := domain.NewTransaction(domain.NewTransactionParams{
 			TenantID:        tenantID,
 			AccountID:       acc.ID,
 			CreatedByUserID: &userID,
@@ -90,8 +89,8 @@ func (s *CSVIngestionService) IngestCSV(
 			Source:          domain.SourceTypeCSV,
 			ExternalID:      raw.ExternalID,
 		})
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("invalid row '%s': %v", raw.Description, err))
+		if transactionErr != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("invalid row '%s': %v", raw.Description, transactionErr))
 			continue
 		}
 
@@ -110,7 +109,6 @@ func (s *CSVIngestionService) IngestCSV(
 	}
 
 	var newTxs []*domain.Transaction
-	balanceDelta := decimal.Zero
 
 	for _, tx := range candidateTxs {
 		if existingMap[tx.Fingerprint] {
@@ -119,9 +117,7 @@ func (s *CSVIngestionService) IngestCSV(
 		}
 
 		newTxs = append(newTxs, tx)
-		if tx.Status.AffectsBalance() {
-			balanceDelta = balanceDelta.Add(tx.Amount)
-		}
+
 	}
 
 	// 5. Persist new transactions in high-throughput batch
@@ -131,12 +127,7 @@ func (s *CSVIngestionService) IngestCSV(
 		}
 		result.Inserted = len(newTxs)
 
-		// 6. Update account balance with aggregate delta
-		if !balanceDelta.IsZero() {
-			if err := s.accRepo.UpdateBalance(ctx, tenantID, accountID, balanceDelta); err != nil {
-				return nil, fmt.Errorf("failed to adjust account balance: %w", err)
-			}
-		}
+		// Persistence updates account balances atomically with the inserted rows.
 	}
 
 	return result, nil

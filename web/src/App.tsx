@@ -37,7 +37,7 @@ export const App: React.FC = () => {
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 50,
-    total_items: 0,
+    total: 0,
     total_pages: 1,
   })
 

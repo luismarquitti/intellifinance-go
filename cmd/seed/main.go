@@ -14,9 +14,13 @@ import (
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	cfg := config.Load()
+	if cfg.DatabaseURL == "" {
+		logger.Error("DATABASE_URL is required")
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
-	logger.Info("connecting to database for seeding...", "url", cfg.DatabaseURL)
+	logger.Info("connecting to database for seeding...")
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {

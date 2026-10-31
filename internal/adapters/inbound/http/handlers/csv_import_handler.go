@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -32,8 +33,20 @@ func (h *CSVIngestHandler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 
 	userID, _ := middleware.UserIDFromContext(r.Context())
 
-	// 32MB max memory buffer for uploaded multipart files
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	// Bound the entire request, not just the multipart in-memory buffer.
+	r.Body = http.MaxBytesReader(w, r.Body, 15<<20)
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
+	if err := r.ParseMultipartForm(1 << 20); err != nil { // #nosec G120 -- MaxBytesReader caps the body above; oversized-upload regression test verifies HTTP 413.
+		var sizeError *http.MaxBytesError
+		if errors.As(err, &sizeError) {
+			problem.Render(w, r, problem.New(http.StatusRequestEntityTooLarge, "about:blank",
+				"Payload Too Large", "CSV upload exceeds the 15 MiB request limit.", r.URL.Path, "ERR_UPLOAD_TOO_LARGE"))
+			return
+		}
 		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Failed to parse multipart form."))
 		return
 	}
@@ -55,7 +68,7 @@ func (h *CSVIngestHandler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Missing uploaded file in field 'file'."))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
 		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Uploaded file must be a .csv file."))

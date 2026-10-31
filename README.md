@@ -10,6 +10,14 @@
 
 ---
 
+## Estado de implementação
+
+O MVP validado contém API Go, persistência PostgreSQL com RLS, importação CSV síncrona e dashboard React embutido. **O diagrama e os destaques abaixo descrevem a arquitetura-alvo, não uma confirmação de que todas as integrações já existem.**
+
+- [Estado verificado, correções e próximo ponto de retomada](docs/DEVELOPMENT_STATUS.md)
+- [Execução local e testes reproduzíveis](docs/LOCAL_DEVELOPMENT.md)
+- O código ativo do MVP está em `dev`; `main` ainda contém apenas o scaffold inicial na inspeção de 2026-10-31.
+
 ## 🏛️ Architectural Overview
 
 IntelliFinance follows **Hexagonal Architecture (Ports and Adapters)**, ensuring complete decoupling between pure domain models and infrastructure adapters across both local Homelab and Google Cloud Platform environments.
@@ -98,28 +106,27 @@ intellifinance-go/
 ## 🛠️ Getting Started (Local Development)
 
 ### Prerequisites
-- [Go 1.22+](https://golang.org)
-- [Docker & Docker Compose](https://www.docker.com)
-- [golang-migrate CLI](https://github.com/golang-migrate/migrate)
+- Go **1.25+**, a C compiler for `-race`, Node/npm and make.
+- PostgreSQL 16 with separate development/test databases and a non-superuser application role.
+- golangci-lint **2.15.0** for the checked-in v2 configuration.
 
-### Quickstart
+### Quickstart on the prepared development host
+
+Use the active `dev` branch (or a working branch based on it), not the initial scaffold on `main`.
+
 ```bash
-# 1. Clone repository
-git clone https://github.com/luismarquitti/intellifinance-go.git
-cd intellifinance-go
-
-# 2. Download dependencies
-go mod download
-
-# 3. Start local database & Redis
-docker compose -f docker-compose.dev.yml up -d
-
-# 4. Generate synthetic banking test fixtures (OFX, CSV, XLSX, JSON)
-go run cmd/fixturegen/main.go
-
-# 5. Run tests
-go test -v ./...
+cd ~/workspace/intellifinance-go
+source "$HOME/.local/share/intellifinance/tools/env.sh"
+make pg-up
+make mvp-up
+make test
+make lint
+make smoke
 ```
+
+The dashboard is served at **http://127.0.0.1:8090** with a synthetic development Admin. It is not exposed to the LAN. The MVP does **not** require Redis or external banking/AI credentials.
+
+See [LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for private configuration, provisioning on a different host, browser smoke tests, SSH tunneling and service lifecycle. Do not use real financial data in this development environment.
 
 ---
 

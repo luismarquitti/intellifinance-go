@@ -34,6 +34,10 @@ func main() {
 
 	// 2. Load configuration
 	cfg := config.Load()
+	if cfg.DatabaseURL == "" {
+		logger.Error("DATABASE_URL is required")
+		os.Exit(1)
+	}
 	logger.Info("starting IntelliFinance API Engine...",
 		"env", cfg.Environment,
 		"bind_addr", cfg.BindAddr,
@@ -63,7 +67,7 @@ func main() {
 	pingCtx, pingCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer pingCancel()
 	if err := pool.Ping(pingCtx); err != nil {
-		logger.Error("failed to ping database", "err", err, "url", cfg.DatabaseURL)
+		logger.Error("failed to ping database", "err", err)
 		os.Exit(1)
 	}
 	logger.Info("database connection established successfully")
@@ -93,7 +97,7 @@ func main() {
 	// 8. Application Services
 	accountService := app.NewAccountService(accountRepo)
 	categoryService := app.NewCategoryService(categoryRepo)
-	transactionService := app.NewTransactionService(transactionRepo, accountRepo)
+	transactionService := app.NewTransactionService(transactionRepo)
 	csvIngestionService := app.NewCSVIngestionService(csvParser, transactionRepo, accountRepo)
 
 	// 9. HTTP Router
@@ -114,6 +118,7 @@ func main() {
 		AppConfig:           cfg,
 		Logger:              logger,
 		CORSOptions:         &corsOpts,
+		ReadinessChecker:    pool,
 	})
 
 	// 10. HTTP Server

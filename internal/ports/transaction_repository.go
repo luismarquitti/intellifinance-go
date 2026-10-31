@@ -36,6 +36,8 @@ type TransactionSummary struct {
 }
 
 // TransactionRepository defines the persistence contract for transactions and splits.
+// Ledger mutations must synchronize account balances atomically and exactly once.
+// Application services must not apply a second account delta after these calls.
 type TransactionRepository interface {
 	// Create persists a single transaction.
 	Create(ctx context.Context, tx *domain.Transaction) error

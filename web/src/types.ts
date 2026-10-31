@@ -84,7 +84,7 @@ export interface TransactionFilters {
 export interface Pagination {
   page: number
   limit: number
-  total_items: number
+  total: number
   total_pages: number
 }
 

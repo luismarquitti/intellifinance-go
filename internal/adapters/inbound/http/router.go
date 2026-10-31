@@ -1,13 +1,17 @@
 package http
 
 import (
+	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/handlers"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/middleware"
+	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/problem"
 	"github.com/luismarquitti/intellifinance-go/internal/config"
 	"github.com/luismarquitti/intellifinance-go/internal/ports"
 )
@@ -21,6 +25,7 @@ type RouterConfig struct {
 	AppConfig           *config.Config
 	Logger              *slog.Logger
 	CORSOptions         *cors.Options
+	ReadinessChecker    ports.ReadinessChecker
 }
 
 // NewRouter builds and configures the Chi v5 router with all required middlewares,
@@ -48,9 +53,17 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	})
 
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if cfg.ReadinessChecker == nil || cfg.ReadinessChecker.Ping(ctx) != nil {
+			problem.Render(w, r, problem.New(http.StatusServiceUnavailable, "about:blank",
+				"Service Unavailable", "PostgreSQL is unavailable.", r.URL.Path, "ERR_NOT_READY"))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"READY"}`))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "UP", "checks": map[string]string{"postgres": "UP"},
+		})
 	})
 
 	// Handlers initialization

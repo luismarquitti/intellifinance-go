@@ -110,10 +110,11 @@ func (m *mockTransactionService) Summarize(ctx context.Context, tenantID uuid.UU
 			continue
 		}
 		summary.Count++
-		if tx.Type == domain.TransactionTypeIncome {
+		switch tx.Type {
+		case domain.TransactionTypeIncome:
 			summary.TotalIncome = summary.TotalIncome.Add(tx.Amount)
 			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
-		} else if tx.Type == domain.TransactionTypeExpense {
+		case domain.TransactionTypeExpense:
 			summary.TotalExpense = summary.TotalExpense.Add(tx.Amount.Abs())
 			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
 		}

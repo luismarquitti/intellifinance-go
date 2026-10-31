@@ -29,6 +29,24 @@ func (m *mockCSVIngestionService) IngestCSV(ctx context.Context, tenantID, userI
 	return m.result, nil
 }
 
+func TestCSVIngestHandler_RejectsOversizedUpload(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("account_id", uuid.NewString()))
+	part, err := writer.CreateFormFile("file", "synthetic.csv")
+	require.NoError(t, err)
+	_, err = part.Write(bytes.Repeat([]byte("x"), 16<<20))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, "/transactions/import/csv", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req = req.WithContext(middleware.WithTenantID(req.Context(), uuid.New()))
+	response := httptest.NewRecorder()
+	handlers.NewCSVIngestHandler(&mockCSVIngestionService{result: &ports.CSVIngestionResult{}}).ImportCSV(response, req)
+	require.Equal(t, http.StatusRequestEntityTooLarge, response.Code)
+	require.Equal(t, "application/problem+json", response.Header().Get("Content-Type"))
+}
+
 func TestCSVIngestHandler_ImportCSV(t *testing.T) {
 	tenantID := uuid.New()
 	userID := uuid.New()

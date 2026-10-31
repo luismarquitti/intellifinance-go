@@ -84,6 +84,7 @@ func TestRouter_E2E(t *testing.T) {
 		CategoryService:    &dummyCategoryService{},
 		TransactionService: &dummyTransactionService{},
 		Logger:             logger,
+		ReadinessChecker:   readinessFunc(func(context.Context) error { return nil }),
 	})
 
 	tenantID := uuid.New()

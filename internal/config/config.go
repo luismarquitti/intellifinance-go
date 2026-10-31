@@ -30,10 +30,10 @@ type Config struct {
 // Load loads configuration from environment variables with sensible homelab development defaults.
 func Load() *Config {
 	port := getEnv("PORT", "8090")
-	bindAddr := getEnv("BIND_ADDR", "0.0.0.0")
+	bindAddr := getEnv("BIND_ADDR", "127.0.0.1")
 	env := strings.ToLower(getEnv("ENVIRONMENT", "development"))
 
-	dbURL := getEnv("DATABASE_URL", "postgres://intellifinance_app:CHANGE_IN_PRODUCTION@192.168.1.10:5432/intellifinance?sslmode=disable")
+	dbURL := getEnv("DATABASE_URL", "")
 
 	tenantIDStr := getEnv("DEV_TENANT_ID", DefaultDevTenantID.String())
 	tenantID, err := uuid.Parse(tenantIDStr)
@@ -47,7 +47,7 @@ func Load() *Config {
 		userID = DefaultDevUserID
 	}
 
-	originsStr := getEnv("CORS_ALLOWED_ORIGINS", "*")
+	originsStr := getEnv("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:8090,http://localhost:8090")
 	var origins []string
 	if originsStr == "*" {
 		origins = []string{"*"}
@@ -67,8 +67,8 @@ func Load() *Config {
 		DevTenantID:    tenantID,
 		DevUserID:      userID,
 		DevAdminEmail:  getEnv("DEV_ADMIN_EMAIL", "admin@intellifinance.local"),
-		DevAdminName:   getEnv("DEV_ADMIN_NAME", "Luis Marquitti (Admin)"),
-		DevTenantName:  getEnv("DEV_TENANT_NAME", "Familia Dev"),
+		DevAdminName:   getEnv("DEV_ADMIN_NAME", "Synthetic Admin"),
+		DevTenantName:  getEnv("DEV_TENANT_NAME", "Synthetic Household"),
 		AllowedOrigins: origins,
 	}
 }
