@@ -3,12 +3,17 @@ package http_test
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	inboundHttp "github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http"
@@ -75,19 +80,52 @@ func (d *dummyTransactionService) BatchUpdateCategory(ctx context.Context, tenan
 	return nil
 }
 
+type dummyTenantResolver struct {
+	tenantID uuid.UUID
+}
+
+func (r *dummyTenantResolver) ResolveTenantByItemID(_ context.Context, itemID string) (uuid.UUID, error) {
+	if itemID == "valid_item" {
+		return r.tenantID, nil
+	}
+	return uuid.Nil, domain.ErrNotFound
+}
+
+type dummyTaskQueue struct{}
+
+func (q *dummyTaskQueue) Enqueue(_ context.Context, _ *ports.Task, _ ...ports.QueueOption) error {
+	return nil
+}
+
+func (q *dummyTaskQueue) Close() error {
+	return nil
+}
+
 func TestRouter_E2E(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	router := inboundHttp.NewRouter(inboundHttp.RouterConfig{
-		AccountService:     &dummyAccountService{},
-		CategoryService:    &dummyCategoryService{},
-		TransactionService: &dummyTransactionService{},
-		Logger:             logger,
-		ReadinessChecker:   readinessFunc(func(context.Context) error { return nil }),
-	})
-
 	tenantID := uuid.New()
+	webhookSecret := "test-router-" + uuid.NewString()
+	signWebhook := func(req *http.Request, body string) {
+		timestamp := fmt.Sprintf("%d", time.Now().Unix())
+		mac := hmac.New(sha256.New, []byte(webhookSecret))
+		_, _ = mac.Write([]byte(timestamp + "."))
+		_, _ = mac.Write([]byte(body))
+		req.Header.Set("X-Pluggy-Timestamp", timestamp)
+		req.Header.Set("X-Pluggy-Signature", hex.EncodeToString(mac.Sum(nil)))
+	}
+
+	router := inboundHttp.NewRouter(inboundHttp.RouterConfig{
+		AccountService:            &dummyAccountService{},
+		CategoryService:           &dummyCategoryService{},
+		TransactionService:        &dummyTransactionService{},
+		OpenFinanceTenantResolver: &dummyTenantResolver{tenantID: tenantID},
+		TaskQueue:                 &dummyTaskQueue{},
+		OpenFinanceWebhookSecret:  webhookSecret,
+		Logger:                    logger,
+		ReadinessChecker:          readinessFunc(func(context.Context) error { return nil }),
+	})
 
 	t.Run("Health checks are public", func(t *testing.T) {
 		rec := httptest.NewRecorder()
@@ -165,6 +203,48 @@ func TestRouter_E2E(t *testing.T) {
 
 		if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent {
 			t.Fatalf("expected preflight 200 or 204, got %d", rec.Code)
+		}
+	})
+
+	t.Run("Open Finance webhook at /api/v1 is exempt from TenantContextMiddleware", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		body := `{"event":"item/updated","itemId":"valid_item"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-IntelliFinance-Webhook-Secret", webhookSecret)
+		signWebhook(req, body)
+		// Explicitly DO NOT set X-Tenant-ID header
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("expected status 202 Accepted, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("Open Finance webhook at root /open-finance/webhook is exempt from TenantContextMiddleware", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		body := `{"event":"item/created","itemId":"valid_item"}`
+		req := httptest.NewRequest(http.MethodPost, "/open-finance/webhook", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-IntelliFinance-Webhook-Secret", webhookSecret)
+		signWebhook(req, body)
+		// Explicitly DO NOT set X-Tenant-ID header
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("expected status 202 Accepted, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("Open Finance webhook without secret returns 401 Unauthorized", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		body := `{"event":"item/updated","itemId":"valid_item"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/open-finance/webhook", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("expected status 401 Unauthorized, got %d: %s", rec.Code, rec.Body.String())
 		}
 	})
 }
