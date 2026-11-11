@@ -48,9 +48,7 @@ func setupMockPluggyServer(t *testing.T) *httptest.Server {
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"id":     "item-123",
 					"status": "UPDATED",
-					"executionStatus": map[string]any{
-						"status": "SUCCESS",
-					},
+					"executionStatus": "SUCCESS",
 				})
 			case http.MethodPatch:
 				w.WriteHeader(http.StatusOK)
@@ -82,7 +80,7 @@ func setupMockPluggyServer(t *testing.T) *httptest.Server {
 				},
 			})
 
-		case "/transactions":
+		case "/v2/transactions":
 			require.Equal(t, "acc-credit-2", r.URL.Query().Get("accountId"))
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"results": []map[string]any{

@@ -198,16 +198,10 @@ func (c *Client) GetItem(ctx context.Context, itemID string) (*ports.ItemSyncRes
 	}
 
 	var itemResp struct {
-		ID            string `json:"id"`
-		Status        string `json:"status"`
-		ExecutionStat struct {
-			Status string `json:"status"`
-			Error  *struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			} `json:"error"`
-		} `json:"executionStatus"`
-		Error *struct {
+		ID              string `json:"id"`
+		Status          string `json:"status"`
+		ExecutionStatus string `json:"executionStatus"`
+		Error           *struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
@@ -224,9 +218,6 @@ func (c *Client) GetItem(ctx context.Context, itemID string) (*ports.ItemSyncRes
 	if itemResp.Error != nil {
 		result.ErrorCode = itemResp.Error.Code
 		result.ErrorMessage = itemResp.Error.Message
-	} else if itemResp.ExecutionStat.Error != nil {
-		result.ErrorCode = itemResp.ExecutionStat.Error.Code
-		result.ErrorMessage = itemResp.ExecutionStat.Error.Message
 	}
 
 	return result, nil
@@ -294,19 +285,18 @@ func (c *Client) FetchAccounts(ctx context.Context, itemID string) ([]ports.Exte
 	return accounts, nil
 }
 
-// FetchTransactions retrieves transactions for an external account in a date interval.
+// FetchTransactions retrieves transactions for an external account in a date interval using /v2/transactions.
 func (c *Client) FetchTransactions(ctx context.Context, accountID string, from, to time.Time) ([]ports.ExternalTransaction, error) {
 	params := url.Values{}
 	params.Set("accountId", accountID)
-	params.Set("pageSize", "500")
 	if !from.IsZero() {
-		params.Set("from", from.Format("2006-01-02"))
+		params.Set("dateFrom", from.Format("2006-01-02"))
 	}
 	if !to.IsZero() {
-		params.Set("to", to.Format("2006-01-02"))
+		params.Set("dateTo", to.Format("2006-01-02"))
 	}
 
-	endpoint := "/transactions?" + params.Encode()
+	endpoint := "/v2/transactions?" + params.Encode()
 	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
