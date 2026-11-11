@@ -57,4 +57,25 @@ var (
 
 	// ErrInvalidID is returned when a required UUID is nil or uninitialized.
 	ErrInvalidID = errors.New("invalid identifier")
+
+	// ErrInvalidTransferPair is returned when a transfer pair cannot be confirmed due to incompatible state.
+	ErrInvalidTransferPair = errors.New("invalid transfer pair")
+
+	// ErrTransferSameAccount is returned when both transfer legs belong to the same account.
+	ErrTransferSameAccount = errors.New("transfer requires two different accounts")
+
+	// ErrTransferAmountMismatch is returned when transfer legs do not have exact opposite amounts.
+	ErrTransferAmountMismatch = errors.New("transfer legs must have exact opposite amounts")
+
+	// ErrTransferAlreadyLinked is returned when a transaction is already linked to another transfer peer.
+	ErrTransferAlreadyLinked = errors.New("transaction is already linked to a transfer peer")
+
+	// ErrTransferCrossTenant is returned when transfer legs belong to different tenants.
+	ErrTransferCrossTenant = errors.New("transfer legs must belong to the same tenant")
+
+	// ErrTransferVoidLeg is returned when attempting to link a void transaction.
+	ErrTransferVoidLeg = errors.New("cannot transfer using void transactions")
+
+	// ErrTransferNotLinked is returned when attempting to unlink a transaction that is not part of a transfer pair.
+	ErrTransferNotLinked = errors.New("transaction is not linked to a transfer peer")
 )

@@ -120,6 +120,18 @@ func NewUnauthorized(instance, detail string) Detail {
 	)
 }
 
+// NewForbidden constructs an RFC 7807 problem for forbidden actions (HTTP 403).
+func NewForbidden(instance, detail string) Detail {
+	return New(
+		http.StatusForbidden,
+		TypeForbidden,
+		"Forbidden",
+		detail,
+		instance,
+		CodeForbidden,
+	)
+}
+
 // NewConflict constructs an RFC 7807 problem for conflict states (HTTP 409).
 func NewConflict(instance, detail, code string) Detail {
 	if code == "" {
@@ -158,6 +170,8 @@ func FromDomainError(instance string, err error) Detail {
 		return NewNotFound(instance, err.Error())
 	case errors.Is(err, domain.ErrUnauthorized):
 		return NewUnauthorized(instance, err.Error())
+	case errors.Is(err, domain.ErrImmutableImportedTransaction), errors.Is(err, domain.ErrReservedProvenance):
+		return NewConflict(instance, err.Error(), CodeConflict)
 	case errors.Is(err, domain.ErrDuplicateTransaction):
 		return NewConflict(instance, err.Error(), CodeDuplicateTransaction)
 	case errors.Is(err, domain.ErrInvalidAmount):
@@ -211,6 +225,22 @@ func FromDomainError(instance string, err error) Detail {
 	case errors.Is(err, domain.ErrInvalidID):
 		return NewValidationFailed(instance, err.Error(), []InvalidParam{
 			{Name: "id", Reason: "must be a valid non-nil UUID"},
+		})
+	case errors.Is(err, domain.ErrTransferAlreadyLinked):
+		return NewConflict(instance, err.Error(), CodeConflict)
+	case errors.Is(err, domain.ErrTransferCrossTenant):
+		return NewForbidden(instance, err.Error())
+	case errors.Is(err, domain.ErrTransferSameAccount):
+		return NewValidationFailed(instance, err.Error(), []InvalidParam{
+			{Name: "accounts", Reason: "source and destination accounts must be different"},
+		})
+	case errors.Is(err, domain.ErrTransferAmountMismatch):
+		return NewValidationFailed(instance, err.Error(), []InvalidParam{
+			{Name: "amount", Reason: "transfer legs must have exact opposite amounts"},
+		})
+	case errors.Is(err, domain.ErrTransferVoidLeg), errors.Is(err, domain.ErrTransferNotLinked), errors.Is(err, domain.ErrInvalidTransferPair):
+		return NewValidationFailed(instance, err.Error(), []InvalidParam{
+			{Name: "transfer", Reason: err.Error()},
 		})
 	default:
 		return NewInternalError(instance, "An unexpected error occurred while processing the request.")

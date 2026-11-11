@@ -98,6 +98,16 @@ func GenerateTransactionFingerprint(
 	return hex.EncodeToString(hash[:])
 }
 
+// MaxMonetaryAmount defines the maximum absolute monetary value representable in NUMERIC(15, 2) (13 integer digits, 2 decimal digits).
+var MaxMonetaryAmount = decimal.RequireFromString("9999999999999.99")
+
+// IsRepresentableInCents evaluates whether a decimal amount is exact down to cents (at most 2 fractional digits).
+// Mathematically, excess trailing zeros (e.g. 1.000) are accepted as they represent the exact same value (1.00),
+// whereas fractional cent values (e.g. 1.001 or 0.001) are rejected.
+func IsRepresentableInCents(d decimal.Decimal) bool {
+	return d.Truncate(2).Equal(d)
+}
+
 // ComputeFingerprint calculates a deterministic SHA-256 idempotency fingerprint for a transaction.
 // Deprecated: use GenerateTransactionFingerprint instead.
 func ComputeFingerprint(
@@ -241,6 +251,9 @@ func (t *Transaction) Validate() error {
 		return ErrInvalidDate
 	}
 	if t.Amount.IsZero() {
+		return ErrInvalidAmount
+	}
+	if !IsRepresentableInCents(t.Amount) || t.Amount.Abs().GreaterThan(MaxMonetaryAmount) {
 		return ErrInvalidAmount
 	}
 	if !t.Type.IsValid() {
