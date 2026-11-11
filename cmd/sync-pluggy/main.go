@@ -299,5 +299,27 @@ func main() {
 		)
 	}
 
+	// 5. Automatic Transfer & Bill Payment Reconciliation Scan
+	logger.Info("running automatic transfer reconciliation scan...")
+	pendingActionRepo := postgres.NewPendingActionRepository(pool)
+	reconciler := app.NewTransferReconciliationService(txRepo, accountRepo, invRepo, pendingActionRepo)
+	scanResult, scanErr := reconciler.ScanAndPropose(ctx, tenantID)
+	if scanErr != nil {
+		logger.Warn("failed running transfer reconciliation scan", "err", scanErr)
+	} else {
+		logger.Info("transfer reconciliation scan complete",
+			"scanned_txs", scanResult.ScannedTransactionsCount,
+			"proposed_actions", scanResult.ProposedActionsCount,
+		)
+		for _, act := range scanResult.ProposedActions {
+			logger.Info("proposed pending reconciliation action",
+				"id", act.ID,
+				"type", act.Payload["reconciliation_type"],
+				"desc", act.Payload["description"],
+				"amount", act.Payload["amount"],
+			)
+		}
+	}
+
 	logger.Info("Open Finance sync completed successfully!")
 }

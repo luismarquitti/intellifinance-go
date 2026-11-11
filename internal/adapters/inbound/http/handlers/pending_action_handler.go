@@ -15,15 +15,24 @@ import (
 
 // PendingActionHandler manages Human-in-the-Loop approval workflows for AI/MCP mutations.
 type PendingActionHandler struct {
-	repo      ports.PendingActionRepository
-	txService ports.TransactionService
+	repo            ports.PendingActionRepository
+	txService       ports.TransactionService
+	transferService ports.TransferService
+	invoiceRepo     ports.InvoiceRepository
 }
 
 // NewPendingActionHandler constructs a new PendingActionHandler.
-func NewPendingActionHandler(repo ports.PendingActionRepository, txService ports.TransactionService) *PendingActionHandler {
+func NewPendingActionHandler(
+	repo ports.PendingActionRepository,
+	txService ports.TransactionService,
+	transferService ports.TransferService,
+	invoiceRepo ports.InvoiceRepository,
+) *PendingActionHandler {
 	return &PendingActionHandler{
-		repo:      repo,
-		txService: txService,
+		repo:            repo,
+		txService:       txService,
+		transferService: transferService,
+		invoiceRepo:     invoiceRepo,
 	}
 }
 
@@ -84,7 +93,34 @@ func (h *PendingActionHandler) Approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Execute payload mutation if it's a categorization proposal
+	// 1. Execute payload mutation if it's a transfer reconciliation proposal
+	if action.ActionType == domain.ActionTypeReconcileTransfer && h.transferService != nil {
+		outflowStr, _ := action.Payload["outflow_transaction_id"].(string)
+		inflowStr, _ := action.Payload["inflow_transaction_id"].(string)
+		outflowID, errOut := uuid.Parse(outflowStr)
+		inflowID, errIn := uuid.Parse(inflowStr)
+		if errOut != nil || errIn != nil {
+			problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid transaction IDs in action payload."))
+			return
+		}
+
+		if _, _, err := h.transferService.ConfirmTransfer(r.Context(), tenantID, outflowID, inflowID); err != nil {
+			problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed confirming reconciled transfer: "+err.Error()))
+			return
+		}
+
+		// If invoice_id is present, mark the invoice as paid
+		if invIDStr, ok := action.Payload["invoice_id"].(string); ok && invIDStr != "" && h.invoiceRepo != nil {
+			if invID, pErr := uuid.Parse(invIDStr); pErr == nil {
+				if inv, getErr := h.invoiceRepo.FindByID(r.Context(), tenantID, invID); getErr == nil && inv != nil {
+					inv.MarkAsPaid()
+					_ = h.invoiceRepo.Save(r.Context(), inv)
+				}
+			}
+		}
+	}
+
+	// 2. Execute payload mutation if it's a categorization proposal
 	if action.ActionType == domain.ActionTypeCategorizeTransaction && h.txService != nil {
 		if txIDStr, ok := action.Payload["transaction_id"].(string); ok {
 			if txID, parseErr := uuid.Parse(txIDStr); parseErr == nil {

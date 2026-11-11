@@ -15,12 +15,40 @@ import (
 
 // TransferHandler handles HTTP requests for confirmed internal transfers.
 type TransferHandler struct {
-	service ports.TransferService
+	service          ports.TransferService
+	reconcileService ports.TransferReconciliationService
 }
 
 // NewTransferHandler constructs a new TransferHandler.
-func NewTransferHandler(service ports.TransferService) *TransferHandler {
-	return &TransferHandler{service: service}
+func NewTransferHandler(service ports.TransferService, reconcileService ports.TransferReconciliationService) *TransferHandler {
+	return &TransferHandler{
+		service:          service,
+		reconcileService: reconcileService,
+	}
+}
+
+// ReconcileScan handles POST /transfers/reconcile-scan.
+func (h *TransferHandler) ReconcileScan(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return
+	}
+
+	if h.reconcileService == nil {
+		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Reconciliation service not configured."))
+		return
+	}
+
+	result, err := h.reconcileService.ScanAndPropose(r.Context(), tenantID)
+	if err != nil {
+		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed executing transfer reconciliation scan: "+err.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // ConfirmTransfer handles POST /transfers/confirm.

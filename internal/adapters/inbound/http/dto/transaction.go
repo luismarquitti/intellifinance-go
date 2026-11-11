@@ -242,8 +242,10 @@ type TransactionResponse struct {
 	AIConfidence       *float64        `json:"ai_confidence,omitempty"`
 	IsManuallyVerified bool            `json:"is_manually_verified"`
 	Notes              string          `json:"notes,omitempty"`
-	Metadata           map[string]any  `json:"metadata"`
-	CreatedAt          time.Time       `json:"created_at"`
+	TransferPeerTransactionID *uuid.UUID      `json:"transfer_peer_transaction_id,omitempty"`
+	BillID                     *uuid.UUID      `json:"bill_id,omitempty"`
+	Metadata                   map[string]any  `json:"metadata"`
+	CreatedAt                  time.Time       `json:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
@@ -289,8 +291,10 @@ func ToTransactionResponse(tx *domain.Transaction) TransactionResponse {
 		IsAICategorized:    tx.IsAICategorized,
 		AIConfidence:       confidence,
 		IsManuallyVerified: tx.IsManuallyVerified,
-		Notes:              tx.Notes,
-		Metadata:           tx.Metadata,
+		TransferPeerTransactionID: tx.TransferPeerTransactionID,
+		BillID:                    tx.BillID,
+		Notes:                     tx.Notes,
+		Metadata:                  tx.Metadata,
 		CreatedAt:          tx.CreatedAt,
 		UpdatedAt:          tx.UpdatedAt,
 	}

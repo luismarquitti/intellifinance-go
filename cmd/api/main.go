@@ -110,6 +110,7 @@ func main() {
 	categoryService := app.NewCategoryService(categoryRepo)
 	transactionService := app.NewTransactionService(transactionRepo)
 	transferService := app.NewTransferService(transferRepo)
+	transferReconcileService := app.NewTransferReconciliationService(transactionRepo, accountRepo, invoiceRepo, pendingActionRepo)
 	csvIngestionService := app.NewCSVIngestionService(csvParser, transactionRepo, accountRepo)
 	invoiceService := app.NewInvoiceService(invoiceRepo, transactionRepo, accountRepo)
 
@@ -124,17 +125,19 @@ func main() {
 	}
 
 	router := httpAdapter.NewRouter(httpAdapter.RouterConfig{
-		AccountService:      accountService,
-		CategoryService:     categoryService,
-		TransactionService:  transactionService,
-		TransferService:     transferService,
-		PendingActionRepo:   pendingActionRepo,
-		CSVIngestionService: csvIngestionService,
-		InvoiceService:      invoiceService,
-		AppConfig:           cfg,
-		Logger:              logger,
-		CORSOptions:         &corsOpts,
-		ReadinessChecker:    pool,
+		AccountService:           accountService,
+		CategoryService:          categoryService,
+		TransactionService:       transactionService,
+		TransferService:          transferService,
+		TransferReconcileService: transferReconcileService,
+		PendingActionRepo:        pendingActionRepo,
+		CSVIngestionService:      csvIngestionService,
+		InvoiceService:           invoiceService,
+		InvoiceRepo:              invoiceRepo,
+		AppConfig:                cfg,
+		Logger:                   logger,
+		CORSOptions:              &corsOpts,
+		ReadinessChecker:         pool,
 	})
 
 	// 10. HTTP Server

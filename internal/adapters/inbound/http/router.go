@@ -22,8 +22,10 @@ type RouterConfig struct {
 	CategoryService           ports.CategoryService
 	TransactionService        ports.TransactionService
 	TransferService           ports.TransferService
+	TransferReconcileService  ports.TransferReconciliationService
 	CSVIngestionService       ports.CSVIngestionService
 	InvoiceService            ports.InvoiceService
+	InvoiceRepo               ports.InvoiceRepository
 	OpenFinanceWebhookHandler *handlers.OpenFinanceWebhookHandler
 	OpenFinanceTenantResolver ports.OpenFinanceTenantResolver
 	TaskQueue                 ports.TaskQueue
@@ -82,7 +84,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	transactionHandler := handlers.NewTransactionHandler(cfg.TransactionService)
 	var transferHandler *handlers.TransferHandler
 	if cfg.TransferService != nil {
-		transferHandler = handlers.NewTransferHandler(cfg.TransferService)
+		transferHandler = handlers.NewTransferHandler(cfg.TransferService, cfg.TransferReconcileService)
 	}
 	var csvHandler *handlers.CSVIngestHandler
 	if cfg.CSVIngestionService != nil {
@@ -90,7 +92,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	}
 	var pendingActionHandler *handlers.PendingActionHandler
 	if cfg.PendingActionRepo != nil {
-		pendingActionHandler = handlers.NewPendingActionHandler(cfg.PendingActionRepo, cfg.TransactionService)
+		pendingActionHandler = handlers.NewPendingActionHandler(cfg.PendingActionRepo, cfg.TransactionService, cfg.TransferService, cfg.InvoiceRepo)
 	}
 	var invoiceHandler *handlers.InvoiceHandler
 	if cfg.InvoiceService != nil {
@@ -173,6 +175,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				r.Post("/confirm", transferHandler.ConfirmTransfer)
 				r.Post("/", transferHandler.CreateTransfer)
 				r.Post("/unlink", transferHandler.UnlinkTransfer)
+				r.Post("/reconcile-scan", transferHandler.ReconcileScan)
 			})
 		}
 

@@ -54,13 +54,50 @@ func (m *mockTransferServiceForHandler) UnlinkTransfer(ctx context.Context, tena
 	return t1, t2, nil
 }
 
+type mockReconcileServiceForHandler struct {
+	result *ports.ReconciliationScanResult
+	err    error
+}
+
+func (m *mockReconcileServiceForHandler) ScanAndPropose(ctx context.Context, tenantID uuid.UUID) (*ports.ReconciliationScanResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &ports.ReconciliationScanResult{
+		ScannedTransactionsCount: 10,
+		ProposedActionsCount:     1,
+		ProposedActions:          []*domain.PendingAction{},
+	}, nil
+}
+
+func TestTransferHandler_ReconcileScan(t *testing.T) {
+	tenantID := uuid.New()
+	reconcileSvc := &mockReconcileServiceForHandler{}
+	handler := handlers.NewTransferHandler(nil, reconcileSvc)
+
+	req := httptest.NewRequest(http.MethodPost, "/transfers/reconcile-scan", nil)
+	req = req.WithContext(middleware.WithTenantID(req.Context(), tenantID))
+
+	rr := httptest.NewRecorder()
+	handler.ReconcileScan(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp ports.ReconciliationScanResult
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Equal(t, 10, resp.ScannedTransactionsCount)
+	require.Equal(t, 1, resp.ProposedActionsCount)
+}
+
 func TestTransferHandler_ConfirmTransfer(t *testing.T) {
 	tenantID := uuid.New()
 	idA := uuid.New()
 	idB := uuid.New()
 
 	svc := &mockTransferServiceForHandler{}
-	handler := handlers.NewTransferHandler(svc)
+	handler := handlers.NewTransferHandler(svc, nil)
 
 	t.Run("success 200", func(t *testing.T) {
 		body, _ := json.Marshal(dto.ConfirmTransferRequest{
@@ -124,7 +161,7 @@ func TestTransferHandler_CreateTransfer(t *testing.T) {
 	accB := uuid.New()
 
 	svc := &mockTransferServiceForHandler{}
-	handler := handlers.NewTransferHandler(svc)
+	handler := handlers.NewTransferHandler(svc, nil)
 
 	t.Run("success 201", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateTransferRequest{
@@ -192,7 +229,7 @@ func TestTransferHandler_UnlinkTransfer(t *testing.T) {
 	txID := uuid.New()
 
 	svc := &mockTransferServiceForHandler{}
-	handler := handlers.NewTransferHandler(svc)
+	handler := handlers.NewTransferHandler(svc, nil)
 
 	t.Run("success 200", func(t *testing.T) {
 		body, _ := json.Marshal(dto.UnlinkTransferRequest{

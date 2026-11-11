@@ -27,7 +27,7 @@ func TestReviewTransferHTTPStableReplay(t *testing.T) {
 	b, _ := domain.NewAccount(tenant, user, "Synthetic HTTP B", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
 	require.NoError(t, accounts.Create(ctx, a))
 	require.NoError(t, accounts.Create(ctx, b))
-	handler := handlers.NewTransferHandler(app.NewTransferService(postgres.NewTransferRepository(pool)))
+	handler := handlers.NewTransferHandler(app.NewTransferService(postgres.NewTransferRepository(pool)), nil)
 	call := func(key, amount string, want int) dto.TransferResponse {
 		body, err := json.Marshal(dto.CreateTransferRequest{SourceAccountID: a.ID.String(), DestinationAccountID: b.ID.String(), Amount: amount, Date: "2026-02-01", Description: "Synthetic HTTP", IdempotencyKey: key})
 		require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestReviewTransferHTTPSubCentAndLimits(t *testing.T) {
 	b, _ := domain.NewAccount(tenant, user, "Synthetic HTTP SubCent B", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
 	require.NoError(t, accounts.Create(ctx, a))
 	require.NoError(t, accounts.Create(ctx, b))
-	handler := handlers.NewTransferHandler(app.NewTransferService(postgres.NewTransferRepository(pool)))
+	handler := handlers.NewTransferHandler(app.NewTransferService(postgres.NewTransferRepository(pool)), nil)
 	call := func(key, amount string, want int) dto.TransferResponse {
 		body, err := json.Marshal(dto.CreateTransferRequest{
 			SourceAccountID:      a.ID.String(),

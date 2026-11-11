@@ -14,6 +14,7 @@ import (
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/handlers"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/middleware"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,7 +77,7 @@ func (m *nativeMockPendingActionRepo) MarkExecuted(ctx context.Context, tenantID
 
 func TestPendingActionHandler_ListPending(t *testing.T) {
 	mockRepo := newNativeMockPendingActionRepo()
-	handler := handlers.NewPendingActionHandler(mockRepo, nil)
+	handler := handlers.NewPendingActionHandler(mockRepo, nil, nil, nil)
 
 	tenantID := uuid.New()
 	action, err := domain.NewPendingAction(tenantID, "mcp-server", domain.ActionTypeCategorizeTransaction, nil)
@@ -99,7 +100,8 @@ func TestPendingActionHandler_ListPending(t *testing.T) {
 
 func TestPendingActionHandler_ApproveAndReject(t *testing.T) {
 	mockRepo := newNativeMockPendingActionRepo()
-	handler := handlers.NewPendingActionHandler(mockRepo, nil)
+	transferSvc := &mockTransferServiceForHandler{}
+	handler := handlers.NewPendingActionHandler(mockRepo, nil, transferSvc, nil)
 
 	tenantID := uuid.New()
 	userID := uuid.New()
@@ -138,4 +140,24 @@ func TestPendingActionHandler_ApproveAndReject(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec2.Code)
 	require.Equal(t, domain.ActionStatusRejected, mockRepo.actions[action2.ID].Status)
 	require.Equal(t, "Wrong proportions", *mockRepo.actions[action2.ID].RejectionReason)
+
+	// Test Approve Reconcile Transfer
+	outflowID := uuid.New()
+	inflowID := uuid.New()
+	actionReconcile, err := domain.NewPendingAction(tenantID, "transfer-reconciler", domain.ActionTypeReconcileTransfer, map[string]any{
+		"outflow_transaction_id": outflowID.String(),
+		"inflow_transaction_id":  inflowID.String(),
+		"amount":                 "150.00",
+	})
+	require.NoError(t, err)
+	require.NoError(t, mockRepo.Save(context.Background(), actionReconcile))
+
+	reqReconcile := httptest.NewRequest(http.MethodPost, "/pending-actions/"+actionReconcile.ID.String()+"/approve", nil)
+	reqReconcile = reqReconcile.WithContext(ctx)
+
+	recReconcile := httptest.NewRecorder()
+	r.ServeHTTP(recReconcile, reqReconcile)
+
+	assert.Equal(t, http.StatusOK, recReconcile.Code)
+	assert.Equal(t, domain.ActionStatusExecuted, mockRepo.actions[actionReconcile.ID].Status)
 }
