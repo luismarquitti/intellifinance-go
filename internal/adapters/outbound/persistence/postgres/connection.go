@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,4 +27,16 @@ func NewConnectionPool(ctx context.Context, connString string) (*pgxpool.Pool, e
 	}
 
 	return pool, nil
+}
+
+// rowScanner abstracts scanning from pgx.Row or pgx.Rows.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// dbExecutor abstracts SQL execution across a pool, a transaction, or context.
+type dbExecutor interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
