@@ -14,6 +14,10 @@ import (
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	cfg := config.Load()
+	if !cfg.IsDevelopment() || config.ProtectedDatabase(cfg.DatabaseURL) {
+		logger.Error("development seed refuses protected database or mode")
+		os.Exit(1)
+	}
 	if cfg.DatabaseURL == "" {
 		logger.Error("DATABASE_URL is required")
 		os.Exit(1)

@@ -15,16 +15,20 @@ var (
 
 // Config holds environment and service configuration for IntelliFinance.
 type Config struct {
-	Port            string
-	BindAddr        string
-	Environment     string
-	DatabaseURL     string
-	DevTenantID     uuid.UUID
-	DevUserID       uuid.UUID
-	DevAdminEmail   string
-	DevAdminName    string
-	DevTenantName   string
-	AllowedOrigins  []string
+	Port                 string
+	BindAddr             string
+	Environment          string
+	DatabaseURL          string
+	DevTenantID          uuid.UUID
+	DevUserID            uuid.UUID
+	DevAdminEmail        string
+	DevAdminName         string
+	DevTenantName        string
+	AllowedOrigins       []string
+	PersonalUsername     string
+	PersonalPasswordHash string
+	PersonalTenantID     uuid.UUID
+	PersonalUserID       uuid.UUID
 }
 
 // Load loads configuration from environment variables with sensible homelab development defaults.
@@ -60,16 +64,20 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:           port,
-		BindAddr:       bindAddr,
-		Environment:    env,
-		DatabaseURL:    dbURL,
-		DevTenantID:    tenantID,
-		DevUserID:      userID,
-		DevAdminEmail:  getEnv("DEV_ADMIN_EMAIL", "admin@intellifinance.local"),
-		DevAdminName:   getEnv("DEV_ADMIN_NAME", "Synthetic Admin"),
-		DevTenantName:  getEnv("DEV_TENANT_NAME", "Synthetic Household"),
-		AllowedOrigins: origins,
+		Port:                 port,
+		BindAddr:             bindAddr,
+		Environment:          env,
+		DatabaseURL:          dbURL,
+		DevTenantID:          tenantID,
+		DevUserID:            userID,
+		DevAdminEmail:        getEnv("DEV_ADMIN_EMAIL", "admin@intellifinance.local"),
+		DevAdminName:         getEnv("DEV_ADMIN_NAME", "Synthetic Admin"),
+		DevTenantName:        getEnv("DEV_TENANT_NAME", "Synthetic Household"),
+		AllowedOrigins:       origins,
+		PersonalUsername:     getEnv("PERSONAL_USERNAME", ""),
+		PersonalPasswordHash: getEnv("PERSONAL_PASSWORD_HASH", ""),
+		PersonalTenantID:     parsePersonalID("PERSONAL_TENANT_ID"),
+		PersonalUserID:       parsePersonalID("PERSONAL_USER_ID"),
 	}
 }
 
@@ -83,4 +91,12 @@ func getEnv(key, defaultVal string) string {
 		return strings.TrimSpace(val)
 	}
 	return defaultVal
+}
+
+func parsePersonalID(key string) uuid.UUID {
+	id, err := uuid.Parse(os.Getenv(key))
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
 }

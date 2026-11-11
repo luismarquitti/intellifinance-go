@@ -18,6 +18,7 @@ import (
 
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/outbound/persistence/postgres"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/outbound/persistence/postgres/db"
+	"github.com/luismarquitti/intellifinance-go/internal/config"
 )
 
 func getTestPool(t *testing.T) *pgxpool.Pool {
@@ -33,12 +34,15 @@ func getTestPool(t *testing.T) *pgxpool.Pool {
 		dbURL = "postgres://intellifinance_app:CHANGE_IN_PRODUCTION@localhost:5432/intellifinance?sslmode=disable"
 	}
 
+	if err := config.ValidateDisposableDatabase(dbURL, os.Getenv("ENVIRONMENT")); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	pool, err := postgres.NewConnectionPool(ctx, dbURL)
 	if err != nil {
-		t.Skipf("Skipping integration test: PostgreSQL not reachable at %s: %v", dbURL, err)
+		t.Fatal("integration database unavailable; refusing to skip required tests")
 		return nil
 	}
 

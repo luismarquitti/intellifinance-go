@@ -21,6 +21,7 @@ type RouterConfig struct {
 	AccountService      ports.AccountService
 	CategoryService     ports.CategoryService
 	TransactionService  ports.TransactionService
+	TransferService     ports.TransferService
 	CSVIngestionService ports.CSVIngestionService
 	AppConfig           *config.Config
 	Logger              *slog.Logger
@@ -38,6 +39,9 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger(cfg.Logger))
 	r.Use(middleware.Recoverer(cfg.Logger))
+	if cfg.AppConfig != nil && cfg.AppConfig.Environment == "personal" {
+		r.Use(middleware.PersonalAuthentication(cfg.AppConfig))
+	}
 
 	if cfg.CORSOptions != nil {
 		r.Use(middleware.CORS(*cfg.CORSOptions))
@@ -70,6 +74,10 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	accountHandler := handlers.NewAccountHandler(cfg.AccountService)
 	categoryHandler := handlers.NewCategoryHandler(cfg.CategoryService)
 	transactionHandler := handlers.NewTransactionHandler(cfg.TransactionService)
+	var transferHandler *handlers.TransferHandler
+	if cfg.TransferService != nil {
+		transferHandler = handlers.NewTransferHandler(cfg.TransferService)
+	}
 	var csvHandler *handlers.CSVIngestHandler
 	if cfg.CSVIngestionService != nil {
 		csvHandler = handlers.NewCSVIngestHandler(cfg.CSVIngestionService)
@@ -81,14 +89,18 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 	// Route registration helper for protected endpoints
 	registerAPIRoutes := func(sub chi.Router) {
-		if cfg.AppConfig != nil {
-			sub.Use(middleware.DevAdminFallbackMiddleware(
-				cfg.AppConfig.IsDevelopment(),
-				cfg.AppConfig.DevTenantID,
-				cfg.AppConfig.DevUserID,
-			))
+		if cfg.AppConfig != nil && cfg.AppConfig.Environment == "personal" {
+			// Global authentication already supplied the only trusted identity.
+		} else {
+			if cfg.AppConfig != nil {
+				sub.Use(middleware.DevAdminFallbackMiddleware(
+					cfg.AppConfig.IsDevelopment(),
+					cfg.AppConfig.DevTenantID,
+					cfg.AppConfig.DevUserID,
+				))
+			}
+			sub.Use(middleware.TenantContextMiddleware)
 		}
-		sub.Use(middleware.TenantContextMiddleware)
 
 		if sessionHandler != nil {
 			sub.Get("/session", sessionHandler.GetSession)
@@ -124,6 +136,15 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			r.Patch("/{id}", transactionHandler.UpdateTransaction)
 			r.Delete("/{id}", transactionHandler.DeleteTransaction)
 		})
+
+		// Transfers CRUD & Pairing
+		if transferHandler != nil {
+			sub.Route("/transfers", func(r chi.Router) {
+				r.Post("/confirm", transferHandler.ConfirmTransfer)
+				r.Post("/", transferHandler.CreateTransfer)
+				r.Post("/unlink", transferHandler.UnlinkTransfer)
+			})
+		}
 	}
 
 	// 3. Register under /api/v1

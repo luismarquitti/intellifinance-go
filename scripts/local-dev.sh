@@ -17,6 +17,17 @@ load_env() {
  source "$ENV_FILE"
  set +a
  : "${DATABASE_URL:?DATABASE_URL is required}"
+ python3 - <<'PY'
+import os
+from urllib.parse import urlsplit, unquote
+u = urlsplit(os.environ['DATABASE_URL'])
+protected = (os.environ.get('ENVIRONMENT') == 'personal' or u.port == 55433
+             or 'personal' in unquote(u.path).lower()
+             or 'personal' in unquote(u.username or '').lower()
+             or bool(os.environ.get('PERSONAL_PASSWORD_HASH')))
+if protected:
+    raise SystemExit('Development/test launcher refuses protected personal target')
+PY
 }
 
 case "${1:-help}" in
@@ -28,6 +39,7 @@ case "${1:-help}" in
   mkdir -p bin
   go build -o bin/api ./cmd/api
   go build -o bin/seed ./cmd/seed
+  go build -o bin/import-ledger ./cmd/import-ledger
   ;;
  up)
   load_env

@@ -47,6 +47,11 @@ func (h *SessionHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 		UserEmail:   h.cfg.DevAdminEmail,
 		Environment: h.cfg.Environment,
 	}
+	if h.cfg.Environment == "personal" {
+		resp.TenantName = "Meu domicílio"
+		resp.UserName = h.cfg.PersonalUsername
+		resp.UserEmail = ""
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

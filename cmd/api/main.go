@@ -34,8 +34,8 @@ func main() {
 
 	// 2. Load configuration
 	cfg := config.Load()
-	if cfg.DatabaseURL == "" {
-		logger.Error("DATABASE_URL is required")
+	if err := cfg.ValidateRuntime(); err != nil {
+		logger.Error("invalid runtime configuration", "reason", err)
 		os.Exit(1)
 	}
 	logger.Info("starting IntelliFinance API Engine...",
@@ -71,11 +71,19 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("database connection established successfully")
+	if cfg.Environment == "personal" {
+		if err := bootstrap.VerifyPersonalDatabase(ctx, pool, cfg); err != nil {
+			logger.Error("personal database protection check failed")
+			os.Exit(1)
+		}
+	}
 
 	// 4. Auto-migration
-	if err := bootstrap.AutoMigrate(ctx, pool, logger); err != nil {
-		logger.Error("database auto-migration failed", "err", err)
-		os.Exit(1)
+	if cfg.Environment != "personal" {
+		if err := bootstrap.AutoMigrate(ctx, pool, logger); err != nil {
+			logger.Error("database auto-migration failed", "err", err)
+			os.Exit(1)
+		}
 	}
 
 	// 5. Dev admin seeding
@@ -90,6 +98,7 @@ func main() {
 	accountRepo := postgres.NewAccountRepository(pool)
 	categoryRepo := postgres.NewCategoryRepository(pool)
 	transactionRepo := postgres.NewTransactionRepository(pool)
+	transferRepo := postgres.NewTransferRepository(pool)
 
 	// 7. Parsers
 	csvParser := parsers.NewCSVParser()
@@ -98,6 +107,7 @@ func main() {
 	accountService := app.NewAccountService(accountRepo)
 	categoryService := app.NewCategoryService(categoryRepo)
 	transactionService := app.NewTransactionService(transactionRepo)
+	transferService := app.NewTransferService(transferRepo)
 	csvIngestionService := app.NewCSVIngestionService(csvParser, transactionRepo, accountRepo)
 
 	// 9. HTTP Router
@@ -114,6 +124,7 @@ func main() {
 		AccountService:      accountService,
 		CategoryService:     categoryService,
 		TransactionService:  transactionService,
+		TransferService:     transferService,
 		CSVIngestionService: csvIngestionService,
 		AppConfig:           cfg,
 		Logger:              logger,

@@ -14,6 +14,9 @@ import (
 // SeedDevAdmin guarantees that a valid admin user, tenant, system categories,
 // and default financial accounts exist for local homelab development.
 func SeedDevAdmin(ctx context.Context, pool *pgxpool.Pool, cfg *config.Config, logger *slog.Logger) error {
+	if cfg == nil || !cfg.IsDevelopment() || config.ProtectedDatabase(cfg.DatabaseURL) {
+		return fmt.Errorf("development seed refuses protected or non-development mode")
+	}
 	logger.InfoContext(ctx, "seeding dev admin tenant, user, categories and accounts...",
 		"tenant_id", cfg.DevTenantID,
 		"user_id", cfg.DevUserID,
