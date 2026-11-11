@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/outbound/openfinance/pluggy"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/outbound/persistence/postgres"
@@ -166,8 +167,11 @@ func main() {
 		}
 
 		// 3. If credit card, fetch bills
+		var bills []ports.ExternalBill
+		billIDMap := make(map[string]uuid.UUID)
 		if extAcc.Type == ports.ExternalAccountCreditCard {
-			bills, bErr := pluggyClient.FetchBills(ctx, extAcc.ID)
+			var bErr error
+			bills, bErr = pluggyClient.FetchBills(ctx, extAcc.ID)
 			if bErr == nil && len(bills) > 0 {
 				logger.Info(fmt.Sprintf("fetched %d bills for credit card %s", len(bills), internalAcc.Name))
 				for _, b := range bills {
@@ -193,6 +197,13 @@ func main() {
 						} else {
 							logger.Info("saved credit card invoice", "bill_id", b.ID, "due_date", b.DueDate.Format("2006-01-02"), "total", b.TotalAmount.StringFixed(2))
 						}
+
+						savedInv, findErr := invRepo.FindByExternalID(ctx, tenantID, b.ID)
+						if findErr == nil && savedInv != nil {
+							billIDMap[b.ID] = savedInv.ID
+						} else {
+							billIDMap[b.ID] = inv.ID
+						}
 					}
 				}
 			}
@@ -216,6 +227,21 @@ func main() {
 				txType = domain.TransactionTypeIncome
 			}
 
+			var internalBillID *uuid.UUID
+			if tx.BillID != "" {
+				if bUUID, ok := billIDMap[tx.BillID]; ok {
+					internalBillID = &bUUID
+				}
+			} else if extAcc.Type == ports.ExternalAccountCreditCard && len(bills) > 0 {
+				// Fallback to active open invoice for credit card purchases without explicit billId
+				for _, b := range bills {
+					if bUUID, ok := billIDMap[b.ID]; ok {
+						internalBillID = &bUUID
+						break
+					}
+				}
+			}
+
 			newTx, txErr := domain.NewTransaction(domain.NewTransactionParams{
 				TenantID:        tenantID,
 				AccountID:       internalAcc.ID,
@@ -229,6 +255,7 @@ func main() {
 				Visibility:      domain.VisibilityShared,
 				Source:          domain.SourceTypePluggy,
 				ExternalID:      tx.ID,
+				BillID:          internalBillID,
 				Metadata: map[string]any{
 					"provider":         "PLUGGY",
 					"payment_method":   tx.PaymentMethod,
@@ -245,10 +272,22 @@ func main() {
 			if err := txService.Create(ctx, newTx); err != nil {
 				if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique constraint") || strings.Contains(err.Error(), "uq_tenant_transaction_fingerprint") {
 					duplicateCount++
+					if internalBillID != nil && tx.ID != "" {
+						_ = postgres.WithTenantTx(ctx, pool, tenantID, userID, func(pgTx pgx.Tx) error {
+							_, execErr := pgTx.Exec(ctx, "UPDATE transactions SET bill_id = $1 WHERE tenant_id = $2 AND external_id = $3", *internalBillID, tenantID, tx.ID)
+							return execErr
+						})
+					}
 					continue
 				}
 				logger.Warn("failed creating transaction", "err", err, "desc", tx.Description)
 				continue
+			}
+			if internalBillID != nil && tx.ID != "" {
+				_ = postgres.WithTenantTx(ctx, pool, tenantID, userID, func(pgTx pgx.Tx) error {
+					_, execErr := pgTx.Exec(ctx, "UPDATE transactions SET bill_id = $1 WHERE tenant_id = $2 AND external_id = $3", *internalBillID, tenantID, tx.ID)
+					return execErr
+				})
 			}
 			createdCount++
 		}

@@ -319,8 +319,9 @@ func (c *Client) FetchTransactions(ctx context.Context, accountID string, from, 
 			PaymentType        string    `json:"paymentType"`
 			BillID             *string   `json:"billId"`
 			CreditCardMetadata *struct {
-				InstallmentNumber int `json:"installmentNumber"`
-				TotalInstallments int `json:"totalInstallments"`
+				InstallmentNumber int     `json:"installmentNumber"`
+				TotalInstallments int     `json:"totalInstallments"`
+				BillID            *string `json:"billId"`
 			} `json:"creditCardMetadata"`
 		} `json:"results"`
 	}
@@ -343,6 +344,8 @@ func (c *Client) FetchTransactions(ctx context.Context, accountID string, from, 
 		}
 		if t.BillID != nil {
 			extTx.BillID = *t.BillID
+		} else if t.CreditCardMetadata != nil && t.CreditCardMetadata.BillID != nil {
+			extTx.BillID = *t.CreditCardMetadata.BillID
 		}
 		if t.CreditCardMetadata != nil {
 			extTx.InstallmentNumber = t.CreditCardMetadata.InstallmentNumber

@@ -100,6 +100,7 @@ func main() {
 	transactionRepo := postgres.NewTransactionRepository(pool)
 	transferRepo := postgres.NewTransferRepository(pool)
 	pendingActionRepo := postgres.NewPendingActionRepository(pool)
+	invoiceRepo := postgres.NewInvoiceRepository(pool)
 
 	// 7. Parsers
 	csvParser := parsers.NewCSVParser()
@@ -110,6 +111,7 @@ func main() {
 	transactionService := app.NewTransactionService(transactionRepo)
 	transferService := app.NewTransferService(transferRepo)
 	csvIngestionService := app.NewCSVIngestionService(csvParser, transactionRepo, accountRepo)
+	invoiceService := app.NewInvoiceService(invoiceRepo, transactionRepo, accountRepo)
 
 	// 9. HTTP Router
 	corsOpts := cors.Options{
@@ -128,6 +130,7 @@ func main() {
 		TransferService:     transferService,
 		PendingActionRepo:   pendingActionRepo,
 		CSVIngestionService: csvIngestionService,
+		InvoiceService:      invoiceService,
 		AppConfig:           cfg,
 		Logger:              logger,
 		CORSOptions:         &corsOpts,

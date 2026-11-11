@@ -15,6 +15,7 @@ import (
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/outbound/persistence/postgres/db"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
 	"github.com/luismarquitti/intellifinance-go/internal/ports"
+	"github.com/shopspring/decimal"
 )
 
 var _ ports.TransactionRepository = (*TransactionRepository)(nil)
@@ -835,4 +836,147 @@ func dbToDomainTransaction(row *db.Transaction) (*domain.Transaction, error) {
 		CreatedAt:                 row.CreatedAt.Time,
 		UpdatedAt:                 row.UpdatedAt.Time,
 	}, nil
+}
+
+
+// SetBillID associates a transaction with a credit card invoice within a tenant boundary.
+func (r *TransactionRepository) SetBillID(ctx context.Context, tenantID, id, billID uuid.UUID) error {
+	if r.tx == nil {
+		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
+			return WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
+				return r.WithTx(tx).SetBillID(ctx, tenantID, id, billID)
+			})
+		}
+	}
+
+	const querySQL = `
+		UPDATE transactions
+		SET bill_id = $3, updated_at = NOW()
+		WHERE id = $1 AND tenant_id = $2;
+	`
+	cmd, err := r.getDB(ctx).Exec(ctx, querySQL, id, tenantID, billID)
+	if err != nil {
+		return fmt.Errorf("failed to set bill_id: %w", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// ListByBillID retrieves all transactions associated with a credit card invoice within a tenant boundary.
+func (r *TransactionRepository) ListByBillID(ctx context.Context, tenantID, billID uuid.UUID) ([]*domain.Transaction, error) {
+	if r.tx == nil {
+		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
+			var result []*domain.Transaction
+			err := WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
+				var txErr error
+				result, txErr = r.WithTx(tx).ListByBillID(ctx, tenantID, billID)
+				return txErr
+			})
+			return result, err
+		}
+	}
+
+	const querySQL = `
+		SELECT id, tenant_id, account_id, category_id, created_by_user_id,
+		       transacted_at, date, amount, description, clean_description,
+		       type, status, visibility, source, external_id, sequence_index,
+		       fingerprint, is_ai_categorized, ai_confidence, ai_model_version,
+		       is_manually_verified, transfer_peer_transaction_id, bill_id,
+		       notes, metadata, created_at, updated_at
+		FROM transactions
+		WHERE tenant_id = $1 AND bill_id = $2
+		ORDER BY date DESC, transacted_at DESC;
+	`
+	rows, err := r.getDB(ctx).Query(ctx, querySQL, tenantID, billID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query transactions by bill_id: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*domain.Transaction
+	for rows.Next() {
+		var (
+			t             domain.Transaction
+			transactedAt  time.Time
+			date          time.Time
+			amount        decimal.Decimal
+			txType        string
+			txStatus      string
+			visibility    string
+			source        string
+			extID         *string
+			aiModel       *string
+			notes         *string
+			metadataBytes []byte
+			createdAt     time.Time
+			updatedAt     time.Time
+		)
+
+		err := rows.Scan(
+			&t.ID,
+			&t.TenantID,
+			&t.AccountID,
+			&t.CategoryID,
+			&t.CreatedByUserID,
+			&transactedAt,
+			&date,
+			&amount,
+			&t.Description,
+			&t.CleanDescription,
+			&txType,
+			&txStatus,
+			&visibility,
+			&source,
+			&extID,
+			&t.SequenceIndex,
+			&t.Fingerprint,
+			&t.IsAICategorized,
+			&t.AIConfidence,
+			&aiModel,
+			&t.IsManuallyVerified,
+			&t.TransferPeerTransactionID,
+			&t.BillID,
+			&notes,
+			&metadataBytes,
+			&createdAt,
+			&updatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan transaction: %w", err)
+		}
+
+		t.TransactedAt = transactedAt
+		t.Date = date
+		t.Amount = amount
+		t.Type = domain.TransactionType(txType)
+		t.Status = domain.TransactionStatus(txStatus)
+		t.Visibility = domain.Visibility(visibility)
+		t.Source = domain.SourceType(source)
+		if extID != nil {
+			t.ExternalID = *extID
+		}
+		if aiModel != nil {
+			t.AIModelVersion = *aiModel
+		}
+		if notes != nil {
+			t.Notes = *notes
+		}
+		t.CreatedAt = createdAt
+		t.UpdatedAt = updatedAt
+
+		t.Metadata = make(map[string]any)
+		if len(metadataBytes) > 0 {
+			_ = json.Unmarshal(metadataBytes, &t.Metadata)
+		}
+
+		result = append(result, &t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during transaction rows iteration: %w", err)
+	}
+
+	return result, nil
 }

@@ -74,4 +74,10 @@ type TransactionRepository interface {
 
 	// GetSplits retrieves all attribution splits for a transaction.
 	GetSplits(ctx context.Context, tenantID, txID uuid.UUID) ([]domain.Split, error)
+
+	// SetBillID associates a transaction with a credit card invoice within a tenant boundary.
+	SetBillID(ctx context.Context, tenantID, id, billID uuid.UUID) error
+
+	// ListByBillID retrieves all transactions associated with a credit card invoice within a tenant boundary.
+	ListByBillID(ctx context.Context, tenantID, billID uuid.UUID) ([]*domain.Transaction, error)
 }

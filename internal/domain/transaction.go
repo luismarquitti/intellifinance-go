@@ -144,6 +144,7 @@ type Transaction struct {
 	AIModelVersion             string           `json:"ai_model_version,omitempty"`
 	IsManuallyVerified         bool             `json:"is_manually_verified"`
 	TransferPeerTransactionID  *uuid.UUID       `json:"transfer_peer_transaction_id,omitempty"`
+	BillID                     *uuid.UUID       `json:"bill_id,omitempty"`
 	Notes                      string           `json:"notes,omitempty"`
 	Metadata                   map[string]any   `json:"metadata"`
 	CreatedAt                  time.Time        `json:"created_at"`
@@ -166,6 +167,7 @@ type NewTransactionParams struct {
 	Source          SourceType
 	ExternalID      string
 	SequenceIndex   int
+	BillID          *uuid.UUID
 	Notes           string
 	Metadata        map[string]any
 }
@@ -227,6 +229,7 @@ func NewTransaction(params NewTransactionParams) (*Transaction, error) {
 		ExternalID:       strings.TrimSpace(params.ExternalID),
 		SequenceIndex:    params.SequenceIndex,
 		Fingerprint:      fingerprint,
+		BillID:           params.BillID,
 		Notes:            strings.TrimSpace(params.Notes),
 		Metadata:         meta,
 		CreatedAt:        now,

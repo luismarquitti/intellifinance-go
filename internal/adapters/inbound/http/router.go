@@ -23,6 +23,7 @@ type RouterConfig struct {
 	TransactionService        ports.TransactionService
 	TransferService           ports.TransferService
 	CSVIngestionService       ports.CSVIngestionService
+	InvoiceService            ports.InvoiceService
 	OpenFinanceWebhookHandler *handlers.OpenFinanceWebhookHandler
 	OpenFinanceTenantResolver ports.OpenFinanceTenantResolver
 	TaskQueue                 ports.TaskQueue
@@ -90,6 +91,10 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	var pendingActionHandler *handlers.PendingActionHandler
 	if cfg.PendingActionRepo != nil {
 		pendingActionHandler = handlers.NewPendingActionHandler(cfg.PendingActionRepo, cfg.TransactionService)
+	}
+	var invoiceHandler *handlers.InvoiceHandler
+	if cfg.InvoiceService != nil {
+		invoiceHandler = handlers.NewInvoiceHandler(cfg.InvoiceService)
 	}
 	var sessionHandler *handlers.SessionHandler
 	if cfg.AppConfig != nil {
@@ -177,6 +182,14 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				r.Post("/{id}/approve", pendingActionHandler.Approve)
 				r.Post("/{id}/reject", pendingActionHandler.Reject)
 			})
+		}
+
+		if invoiceHandler != nil {
+			sub.Route("/invoices", func(r chi.Router) {
+				r.Get("/", invoiceHandler.ListInvoices)
+				r.Get("/{id}", invoiceHandler.GetInvoice)
+			})
+			sub.Get("/cashflow/projection", invoiceHandler.GetCashflowProjection)
 		}
 	}
 

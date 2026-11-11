@@ -138,14 +138,14 @@ func (r *InvoiceRepository) FindByExternalID(ctx context.Context, tenantID uuid.
 	return scanInvoice(row)
 }
 
-// ListByAccount returns all invoices for an account sorted by due date descending.
-func (r *InvoiceRepository) ListByAccount(ctx context.Context, tenantID, accountID uuid.UUID) ([]*domain.CreditCardInvoice, error) {
+// List returns invoices for a tenant, optionally filtered by accountID, sorted by due date descending.
+func (r *InvoiceRepository) List(ctx context.Context, tenantID uuid.UUID, accountID *uuid.UUID) ([]*domain.CreditCardInvoice, error) {
 	if r.tx == nil {
 		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
 			var invs []*domain.CreditCardInvoice
 			err := WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
 				var txErr error
-				invs, txErr = r.WithTx(tx).ListByAccount(ctx, tenantID, accountID)
+				invs, txErr = r.WithTx(tx).List(ctx, tenantID, accountID)
 				return txErr
 			})
 			return invs, err
@@ -157,7 +157,7 @@ func (r *InvoiceRepository) ListByAccount(ctx context.Context, tenantID, account
 		       total_amount, minimum_payment, currency, status, allows_installments,
 		       metadata, created_at, updated_at
 		FROM credit_card_invoices
-		WHERE tenant_id = $1 AND account_id = $2
+		WHERE tenant_id = $1 AND ($2::uuid IS NULL OR account_id = $2::uuid)
 		ORDER BY due_date DESC;
 	`
 	rows, err := r.getExecutor(ctx).Query(ctx, querySQL, tenantID, accountID)
@@ -178,6 +178,11 @@ func (r *InvoiceRepository) ListByAccount(ctx context.Context, tenantID, account
 		return nil, rowsErr
 	}
 	return result, nil
+}
+
+// ListByAccount returns all invoices for an account sorted by due date descending.
+func (r *InvoiceRepository) ListByAccount(ctx context.Context, tenantID, accountID uuid.UUID) ([]*domain.CreditCardInvoice, error) {
+	return r.List(ctx, tenantID, &accountID)
 }
 
 func scanInvoice(scanner rowScanner) (*domain.CreditCardInvoice, error) {

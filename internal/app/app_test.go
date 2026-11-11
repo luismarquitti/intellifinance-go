@@ -175,6 +175,25 @@ func (m *mockTxRepo) CreateSplits(ctx context.Context, tenantID, txID uuid.UUID,
 func (m *mockTxRepo) GetSplits(ctx context.Context, tenantID, txID uuid.UUID) ([]domain.Split, error) {
 	return nil, nil
 }
+func (m *mockTxRepo) SetBillID(ctx context.Context, tenantID, id, billID uuid.UUID) error {
+	tx, ok := m.txs[id]
+	if !ok || tx.TenantID != tenantID {
+		return domain.ErrNotFound
+	}
+	tx.BillID = &billID
+	return nil
+}
+func (m *mockTxRepo) ListByBillID(ctx context.Context, tenantID, billID uuid.UUID) ([]*domain.Transaction, error) {
+	var res []*domain.Transaction
+	for _, tx := range m.txs {
+		if tx.TenantID == tenantID && tx.BillID != nil && *tx.BillID == billID {
+			clone := *tx
+			res = append(res, &clone)
+		}
+	}
+	return res, nil
+}
+
 
 func TestCSVIngestionService_EndToEnd(t *testing.T) {
 	tenantID := uuid.New()
