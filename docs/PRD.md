@@ -652,6 +652,7 @@ The system relies on six core relational entity domains:
 6. **Internal Transfer Invariants & Lock Ordering**: Transfer pairs maintain strict decimal symmetry (`legA.Amount + legB.Amount == 0`) with zero sub-cent fractional precision allowed (`amount.Truncate(2) == amount`), linked via `transfer_peer_transaction_id` and filtered from operational cash-flow totals. Concurrency is protected by deterministic ascending locks (`ORDER BY id ASC FOR NO KEY UPDATE` - ADR-010).
 7. **Canonical Ingestion & Provenance Immutability**: Historical financial records preserve original statement text and row SHA-256 fingerprints with sequence indexes. Generic writers are prohibited from minting or altering provenance-locked facts (ADR-011).
 8. **Human-in-the-Loop (HITL) AI Governance**: AI tools (via MCP Go Server) and Open Finance automations submit proposed mutations to `pending_actions` in `PENDING` state. Automated models cannot directly mutate balances without explicit human confirmation (ADR-012).
+9. **Open Finance Brazilian Standardization & Personal Tier**: Canonical schemas for accounts, credit card bills, installments and PIX rails conform to Pluggy.ai specifications and operational guide `docs/OPEN_FINANCE_INTEGRATION_GUIDE.md`, with zero-cost personal tier support via Meu Pluggy.
 
 ---
 

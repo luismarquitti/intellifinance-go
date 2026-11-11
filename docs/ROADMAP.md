@@ -100,7 +100,13 @@ Conforme formalizado em `docs/CONSOLIDATED_MASTER_PLAN.md` e nos ADRs 010, 011 e
    - Modelagem de faturas e cartão de crédito sem dupla contagem com débito.
    - Conciliação das 12 âncoras bancárias com os 135 CSVs (ADR-011).
    - Carga pessoal no PostgreSQL :55433 após validação de dump & restore.
-3. **Fase 3: Governança de IA & Open Finance**:
+3. **Fase 3: Governança de IA & Open Finance (Priorizada como Próximo Passo)**:
+   - ✅ Webhook Open Finance com validação HMAC em tempo constante (PR #45 mesclado).
+   - ✅ Consulta oficial de contratos e schemas canônicos da Pluggy (Accounts, Bills, Transactions, PIX).
+   - ✅ Guia completo de integração e cadastro no Meu Pluggy (`docs/OPEN_FINANCE_INTEGRATION_GUIDE.md`).
+   - ⏳ Migrações versionadas DDL para faturas, parcelas, snapshots e pending_actions (Issues #46, #47, #48).
+   - ⏳ Adaptador Go Pluggy Client resiliente com cache de API Key e Sandbox testing (Issue #13).
+   - ⏳ Servidor MCP nativo em Go (`cmd/mcp`) e interface web de aprovação HITL (ADR-012, Issue #48).
    - Webhook Open Finance com validação HMAC em tempo constante (PR #45).
    - Servidor MCP nativo Go (`cmd/mcp`) e tabela `pending_actions` com fluxo HITL estrito (ADR-012).
    - Adaptador Pluggy com cache e rate limiting.
