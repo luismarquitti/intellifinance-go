@@ -65,6 +65,12 @@ func (r *TransactionRepository) getQueries(ctx context.Context) *db.Queries {
 
 // Create persists a single transaction with idempotent ON CONFLICT (tenant_id, fingerprint) DO NOTHING policy.
 func (r *TransactionRepository) Create(ctx context.Context, tx *domain.Transaction) error {
+	if tx.TransferPeerTransactionID != nil {
+		return domain.ErrTransferAlreadyLinked
+	}
+	if err := validateGenericTransactionProvenance(tx); err != nil {
+		return err
+	}
 	if err := tx.Validate(); err != nil {
 		return fmt.Errorf("invalid transaction: %w", err)
 	}
@@ -102,6 +108,12 @@ func (r *TransactionRepository) BatchCreate(ctx context.Context, txs []*domain.T
 	}
 
 	for _, tx := range txs {
+		if tx.TransferPeerTransactionID != nil {
+			return domain.ErrTransferAlreadyLinked
+		}
+		if err := validateGenericTransactionProvenance(tx); err != nil {
+			return err
+		}
 		if err := tx.Validate(); err != nil {
 			return fmt.Errorf("invalid transaction in batch: %w", err)
 		}
@@ -420,6 +432,9 @@ func (r *TransactionRepository) BatchDelete(ctx context.Context, tenantID uuid.U
 		}
 	}
 
+	if err := r.guardTransferDeletion(ctx, tenantID, ids); err != nil {
+		return err
+	}
 	q := r.getQueries(ctx)
 	if err := q.BatchDeleteTransactions(ctx, db.BatchDeleteTransactionsParams{
 		TenantID: tenantID,
@@ -475,6 +490,12 @@ func (r *TransactionRepository) Update(ctx context.Context, tx *domain.Transacti
 		}
 	}
 
+	if err := r.guardTransferUpdate(ctx, tx); err != nil {
+		return err
+	}
+	if err := r.guardImportedProvenance(ctx, tx); err != nil {
+		return err
+	}
 	params, err := toUpdateParams(tx)
 	if err != nil {
 		return err
@@ -502,6 +523,9 @@ func (r *TransactionRepository) Delete(ctx context.Context, tenantID, id uuid.UU
 		}
 	}
 
+	if err := r.guardTransferDeletion(ctx, tenantID, []uuid.UUID{id}); err != nil {
+		return err
+	}
 	q := r.getQueries(ctx)
 	err := q.DeleteTransaction(ctx, db.DeleteTransactionParams{
 		ID:       id,
