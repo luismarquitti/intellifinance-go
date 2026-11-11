@@ -1,3 +1,38 @@
+
+## Verificação de 2026-11-11 — Consolidação de Open Finance, Faturas, Migrações e MCP HITL
+
+**Marco atingido: Integração Open Finance (Pluggy), Modelo de Faturas de Cartão de Crédito, Migrador DDL com locks atômicos e Servidor MCP Go com governança HITL entregues e 100% testados.**
+
+### Entregas Realizadas
+
+1. **Migrador DDL Atômico e CLI (`cmd/migrate`) (Issue #46)**:
+   - Motor sequencial atômico em `internal/bootstrap/migrate.go` com tabela de controle `schema_migrations`, detecção de dirty state e lock transacional serializado via advisory lock `pg_advisory_lock(847291048291)`.
+   - Migrações versionadas:
+     - `000001_init_schema.up.sql`: baseline do schema inicial.
+     - `000002_open_finance_and_invoices.up.sql`: tabelas `provider_balance_snapshots`, `credit_card_invoices` e coluna `transactions.bill_id` com políticas RLS.
+     - `000003_hitl_pending_actions.up.sql`: tabela `pending_actions` com políticas RLS.
+   - CLI de migração dedicado `cmd/migrate/main.go` suportando flags `-status`, `-up` e `-version`.
+2. **Modelagem de Domínio e Persistência de Faturas e Snapshots (Issue #47)**:
+   - Entidades de domínio: `CreditCardInvoice`, `ProviderBalanceSnapshot` e `PendingAction`.
+   - Repositórios PostgreSQL com injeção automática de contexto de isolamento RLS (`WithTenantTx`): `InvoiceRepository`, `ProviderBalanceSnapshotRepository` e `PendingActionRepository`.
+   - Invariante inegociável da ADR-012: O saldo informado por Open Finance é gravado em snapshots históricos e **nunca** muta diretamente `accounts.balance`, preservando a consistência do ledger contábil.
+3. **Conector Open Finance Pluggy em Go (Issue #13)**:
+   - Pacote `internal/adapters/outbound/openfinance/pluggy/client.go` implementando `ports.OpenFinanceConnector`.
+   - Autenticação com cache de `apiKey` temporária via `POST /auth`, mitigando overhead de rede.
+   - Suporte a `CreateConnectToken`, `GetItem`, `FetchAccounts`, `FetchTransactions`, `FetchBills`, `TriggerSync` e `DeleteConnection`.
+4. **Servidor MCP Go (`cmd/mcp`) e Endpoints HITL (Issue #48 / ADR-012)**:
+   - Servidor MCP nativo sobre stdio (JSON-RPC 2.0).
+   - Ferramentas de leitura: `list_accounts`, `get_balances`, `list_transactions`, `list_invoices`, `list_pending_actions`.
+   - Ferramentas de proposta com governança HITL: `propose_categorization` gravando em `pending_actions` em estado `PENDING`.
+   - Endpoints HTTP no Chi v5 para decisão humana:
+     - `GET /api/v1/pending-actions`: listagem de propostas pendentes.
+     - `POST /api/v1/pending-actions/{id}/approve`: aprovação e execução atômica da mutação.
+     - `POST /api/v1/pending-actions/{id}/reject`: rejeição com motivo auditável.
+5. **Qualidade e Confiabilidade**:
+   - 445 testes unitários e de integração passando com `-race` detector (zero race conditions, zero flakes).
+   - 0 issues no linter oficial (`scripts/local-dev.sh lint`).
+   - Binário `bin/api` recompilado e ativo no systemd do `lm-claw` na porta `:8090`.
+
 # Estado de desenvolvimento e ponto de retomada
 
 ## Verificação de 2026-10-31 — lm-main / Hermes
