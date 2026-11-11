@@ -74,3 +74,71 @@ Pendências conhecidas, não ativadas automaticamente:
 - Revisar a PR #45 e retomar a fase assíncrona apenas após consolidar a base local.
 
 A implementação atual não equivale a uma auditoria integral de segurança, desempenho, acessibilidade ou produção. Dados reais continuam fora do escopo deste ambiente.
+
+## Piloto pessoal — verificação de 06/11/2026 UTC
+
+**Infraestrutura entregue em pré-carga; uso financeiro pessoal ainda bloqueado, não concluído.** O ambiente de desenvolvimento acima continua exclusivamente sintético. A autorização de dados reais aplica-se somente às instâncias isoladas do piloto, nunca ao bypass dev.
+
+- Pessoal: HTTP `127.0.0.1:8092`, PostgreSQL `127.0.0.1:55433`. QA autenticada separada: HTTP `127.0.0.1:8093`, PostgreSQL `127.0.0.1:55434`. Unidades de usuário habilitadas, quatro serviços ativos e binds loopback conferidos. Nada publicado na LAN/internet.
+- Basic/bcrypt global na SPA/API/aliases, identidade fixa, rejeição de origin/Host e spoofing; configuração inconsistente falha fechada. Runtime pessoal não executa seed nem migração automática. Papel sem superuser/BYPASSRLS e sem remoção de identidade/transações pessoais.
+- Launchers e seed testados contra a configuração pessoal real: recusa explícita antes de mutação, seguida de leitura confirmando preservação. Suíte PostgreSQL agora também recusa alvo não descartável antes de conectar.
+- Importador genérico canônico `cmd/import-ledger`: preview padrão; arquivo original integral em arquivo privado por conteúdo; proveniência por registro; importação SQL atômica e serializada; fingerprints canônicos, repetições legítimas e classificação manual preservadas. Conflito de ID original aborta lote. Testado com dados sintéticos na QA autenticada, inclusive oito replays concorrentes no PostgreSQL. Não resolve cartão, liquidação, transferências ou obrigações e não foi usado para carga pessoal.
+- Gates finais: `make test` com 264 eventos Go/casos incluindo subtestes, 20 pacotes, zero falhas/skips; 28 testes operacionais Python. Lint zero issues; build, vet, verificação de módulos e diff check aprovados.
+- Chromium real aprovou login válido/inválido/anônimo, navegação, spoofing, filtros e largura móvel de 390 px. Sem capturas pessoais. Logout de aplicação, importação/CRUD financeiro pessoal no browser continuam pendentes.
+- Backup pré-carga restaurado em banco novo e conferido por hashes/contagens, com valores NUMERIC tratados como texto decimal exato. A prova cobre identidade/schema: não havia movimentos pessoais para restaurar.
+- Inventário e conferência Decimal independentes guardados em área privada. Diferenças de representação, ausência de uma âncora e lacunas de domínio registradas sem PII nos documentos públicos. Não tratar cronogramas antigos ou holerites como novos movimentos de caixa.
+
+O bloqueio inicial de reinício foi resolvido pelo processo interativo às 00:26 UTC de 06/11/2026. O worker validou a prova: dois PIDs PostgreSQL alterados, contagens/hashes iguais, serviços ativos; não repetiu o reinício. A persistência da estrutura/identidade está comprovada, mas dados financeiros ainda não foram carregados. Parada atual: quota Codex atingiu o limiar de 20% antes da próxima etapa extensa. O código final de guardas de proveniência está testado no checkout, mas ainda não substituiu os binários estáveis. Retomar pelo checkpoint privado, sem reexecutar setup de identidade/cluster e sem seed/cleanup pessoal.
+
+Operação, caminhos de credencial (sem conteúdo), recuperação e limites: [PERSONAL_PILOT_OPERATIONS.md](PERSONAL_PILOT_OPERATIONS.md). Lista integral de aceite: [PERSONAL_PILOT_PLAN.md](PERSONAL_PILOT_PLAN.md). Nenhum commit, push, PR ou issue foi criado nesta execução.
+
+### Rodada de 06/11/2026: Transferências Internas Confirmadas (Fatia Vertical de Backend)
+
+Foi implementado um **candidato** de backend para transferências internas. **A revisão Codex de 06/11/2026 reprovou o candidato e bloqueou a implantação**, apesar dos gates iniciais verdes: identificou violações de integridade entre writers genéricos e o par, criação/replay com IDs não persistidos, riscos de concorrência e lacunas de proveniência/arquivo. A lista abaixo registra a implementação inicial, não uma certificação de integridade nem um deploy. As correções estão em andamento e exigem nova revisão e provas reais antes de substituir qualquer binário QA; a instância pessoal permanece inalterada.
+
+**Retomada em 06/11/2026, 14:44 UTC:** os bloqueadores originais receberam correções com regressões reais; o pai reexecutou `make test` (392 eventos incluindo subtestes, sem falhas/skips), lint zero issues, builds API/CLI, módulos e diff check. A revisão independente seguinte confirmou o fechamento dos achados anteriores, mas **reprovou o candidato por dois novos bloqueadores estáticos**, ainda sem reprodução executada: (1) transferência aceita frações de centavo, arredondadas por NUMERIC, quebrando valor não zero e replay; (2) locks `FOR SHARE` de validação de moeda podem entrar em deadlock ao promover locks pelos triggers de saldo em confirmações concorrentes de pares distintos. Não houve deploy QA nem carga pessoal. A próxima correção precisa de RED/GREEN para ambos e revisão da ordem/modalidade de locks em todos os writers envolvidos; não basta trocar `FOR SHARE` isoladamente. Quota Codex consultada às 14:44 UTC: 15% curta/63% semanal; Gemini 99% curta/92% semanal. Execução extensa interrompida para decisão do usuário sobre recorte ou executor, sem fallback automático.
+
+**Verificação de 06/11/2026, 16:56 UTC:** Gemini implementou a correção de centavos e reproduziu o bug por HTTP/PostgreSQL antes da mudança. O pai reexecutou a suíte: **395 eventos Go incluindo subtestes, sem falhas/skips**, e lint zero issues. Valores com fração de centavo são recusados antes da escrita; zeros decimais excedentes sem perda são aceitos. A investigação do deadlock ficou pendente após nova recusa de busca no executor. Não há worker ativo desta rodada nem deploy QA. Após três interrupções por regras de comandos, novas tentativas/ampliações de permissão estão pausadas para discutir uma interface de execução delimitada ou troca de executor autorizada. Base e binário pessoais foram novamente comparados com o snapshot e permanecem iguais. Checkpoint atualizado em `bin/agy-progress/checkpoint.md` (ignorado pelo Git); o checkpoint antigo de 01:54 UTC não representa esta rodada.
+
+- **Domínio Puro (`internal/domain/transfer.go`)**:
+  - `ValidateTransferPair`: valida que as transações pertencem ao mesmo tenant, a contas distintas, possuem valores opostos (`legA.Amount = -legB.Amount`) e tipo não `VOID`. Rejeita pares já vinculados a outras transações e proíbe emparelhamento automático.
+  - `ConfirmTransferPair`: estabelece o vínculo bidirecional mútuo (`TransferPeerTransactionID`) e marca o tipo de ambas as pernas como `TRANSFER`.
+  - `UnlinkTransferPair`: desassociação reversível restaurando os tipos originais (`INCOME`/`EXPENSE`) baseando-se no sinal do montante Decimal, limpando `TransferPeerTransactionID` sem remover registros ou proveniência.
+  - `NewInternalTransfer`: construtor de transferência dual-leg nova direta entre contas próprias.
+- **Portas e Aplicação (`internal/ports/transfer.go`, `internal/app/transfer_service.go`)**:
+  - Contrato de porta `TransferRepository` e serviço de aplicação `TransferService` com métodos `ConfirmTransfer`, `CreateTransfer` e `UnlinkTransfer`.
+- **Persistência PostgreSQL com RLS (`internal/adapters/outbound/persistence/postgres/transfer_repository.go`)**:
+  - Execução atômica sob `WithTenantTx` com `SET LOCAL app.current_tenant_id`.
+  - Ordenação determinística de IDs (`firstID, secondID`) e `SELECT ... FOR UPDATE` para evitar deadlocks de concorrência.
+  - Resolução de chave estrangeira de autocitação mútua em duas etapas controladas.
+  - Testes reais de integração validando que o fluxo de caixa consolidado (`SummarizeTransactions`) ignora movimentações `TRANSFER`, mantendo receitas e despesas inalteradas enquanto os saldos individuais das contas refletem a transferência via triggers.
+  - Preservação estrita de proveniência (`metadata["provenance"]`), IDs literais e carimbos de auditoria.
+- **Camada HTTP Chi e RFC 7807 (`internal/adapters/inbound/http/handlers/transfer_handler.go`)**:
+  - Endpoints: `POST /transfers/confirm`, `POST /transfers` e `POST /transfers/unlink`.
+  - Mapeamento de violações de regra de negócio para RFC 7807 Problem Details (403 Forbidden para violação cross-tenant, 409 Conflict para pernas já vinculadas ou estados conflitantes, 422 Unprocessable Entity para contas idênticas ou divergência de montante).
+- **Gates Aprovados**:
+  - `make test`: 292 eventos Go aprovados (20 pacotes, zero falhas, zero skips) + 28 testes operacionais Python aprovados.
+  - `make lint`: 0 issues.
+  - `make build`: binários compilados e bundle Vite SPA gerado com sucesso.
+  - `go vet ./...`: 0 avisos.
+  - `go mod verify`: todos os módulos verificados.
+  - `git diff --check`: 0 issues.
+- **Limites e Próximas Etapas**:
+  - Cartões de crédito, faturas/obrigações, reconciliação de extratos externos contra fontes bancárias e carga financeira real permanecem como etapas posteriores do plano de piloto.
+
+## Atualização de 11/11/2026: Resolução Definitiva dos Bloqueadores e Suíte Completa Green
+
+Em 11 de Novembro de 2026, os dois bloqueadores estáticos identificados na revisão foram formalmente sanados com TDD (RED/GREEN) e validação mecânica estrita:
+
+1. **Bloqueador 1 (Precisão Decimal de Centavos)**:
+   - Rejeição pura no domínio (`IsRepresentableInCents`) e validação 422 no DTO para frações de centavos inferiores a R$ 0,01.
+   - Proteção contra overflow numérico além dos limites de `NUMERIC(15,2)` com `MaxMonetaryAmount`.
+   - Zeros irrelevantes sem perda de precisão (ex.: `1.000`) continuam aceitos e normalizados.
+2. **Bloqueador 2 (Risco de Deadlock em Transferências Concorrentes)**:
+   - Em `validateTransferCurrencies`, a consulta de validação de moedas foi corrigida de `ORDER BY id FOR SHARE` para `ORDER BY id ASC FOR NO KEY UPDATE`.
+   - Essa ordem ascendente determinística e a modalidade exclusiva eliminam a necessidade de promoção de shared lock durante a execução do trigger de saldo `trg_sync_balance`.
+   - Criado teste de estresse concorrente `TestReviewTransferConcurrentDeadlockAvoidance` em `internal/adapters/outbound/persistence/postgres/transfer_deadlock_test.go`, validando 8 goroutines simultâneas em direções opostas (A -> B e B -> A) para `CreateTransfer` e 4 pares concorrentes para `ConfirmTransfer`. Ambas as rotinas serializam perfeitamente com zero deadlocks e conservação estrita de saldo.
+3. **Veredito Mecânico Final**:
+   - `bash scripts/local-dev.sh test`: **396 eventos Go aprovados** (20 pacotes, zero falhas, zero skips) com `-race` ativado e PostgreSQL isolado.
+   - `bash scripts/local-dev.sh lint`: **0 issues**.
+   - Builds `bin/api`, `bin/seed`, `bin/import-ledger` e build web React 19 SPA aprovados.

@@ -87,6 +87,30 @@ By executing this roadmap sequentially from Phase 0 to Phase 5, an engineer mast
 
 ---
 
+## 1.4 Sequenciamento Executivo Consolidado (Novembro 2026)
+
+Conforme formalizado em `docs/CONSOLIDATED_MASTER_PLAN.md` e nos ADRs 010, 011 e 012, o roteiro de execução ativo organiza o roadmap nas seguintes 4 etapas sequenciais:
+
+1. **Fase 1: Estabilização do Core & Invariantes Locais (Concluída / Em Homologação)**:
+   - ✅ Resolução de bloqueador de precisão decimal de sub-centavos (`amount.Truncate(2) == amount`).
+   - ✅ Resolução de deadlock concorrente em transferências (`ORDER BY id ASC FOR NO KEY UPDATE` - ADR-010).
+   - ✅ Suíte com 396 testes Go aprovados com `-race` e zero skips.
+   - ⏳ Criação de migrador versionado explícito (`schema_migrations`) e homologação no QA (:8093).
+2. **Fase 2: Semântica Financeira & Piloto Pessoal**:
+   - Modelagem de faturas e cartão de crédito sem dupla contagem com débito.
+   - Conciliação das 12 âncoras bancárias com os 135 CSVs (ADR-011).
+   - Carga pessoal no PostgreSQL :55433 após validação de dump & restore.
+3. **Fase 3: Governança de IA & Open Finance**:
+   - Webhook Open Finance com validação HMAC em tempo constante (PR #45).
+   - Servidor MCP nativo Go (`cmd/mcp`) e tabela `pending_actions` com fluxo HITL estrito (ADR-012).
+   - Adaptador Pluggy com cache e rate limiting.
+4. **Fase 4: Nuvem & Inteligência Multimodal**:
+   - Workers em segundo plano (Cloud Tasks / Asynq).
+   - OCR Multimodal com Gemini 2.0 Flash (`google.golang.org/genai`).
+   - Validação RLS completa e showcase público higienizado.
+
+---
+
 ## 2. Phase 0: Clean Project Scaffolding & Security Foundation
 
 ### 2.1 Architectural Objectives

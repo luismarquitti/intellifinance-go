@@ -649,6 +649,9 @@ The system relies on six core relational entity domains:
 3. **Monetary Precision**: All monetary values are defined as PostgreSQL `NUMERIC(15, 2)` and mapped to `shopspring/decimal.Decimal` in Go. Floating-point arithmetic (`float32`, `float64`) is strictly prohibited in financial calculations.
 4. **Row-Level Security Enforcement**: Tables containing tenant data must enforce RLS at the engine level. No query can execute without an active transactional session setting `SET LOCAL app.current_tenant_id = '...'`.
 5. **Immutable Audit Logs**: The `audit_logs` table is strictly append-only. `UPDATE` and `DELETE` operations are revoked from the application database role.
+6. **Internal Transfer Invariants & Lock Ordering**: Transfer pairs maintain strict decimal symmetry (`legA.Amount + legB.Amount == 0`) with zero sub-cent fractional precision allowed (`amount.Truncate(2) == amount`), linked via `transfer_peer_transaction_id` and filtered from operational cash-flow totals. Concurrency is protected by deterministic ascending locks (`ORDER BY id ASC FOR NO KEY UPDATE` - ADR-010).
+7. **Canonical Ingestion & Provenance Immutability**: Historical financial records preserve original statement text and row SHA-256 fingerprints with sequence indexes. Generic writers are prohibited from minting or altering provenance-locked facts (ADR-011).
+8. **Human-in-the-Loop (HITL) AI Governance**: AI tools (via MCP Go Server) and Open Finance automations submit proposed mutations to `pending_actions` in `PENDING` state. Automated models cannot directly mutate balances without explicit human confirmation (ADR-012).
 
 ---
 
