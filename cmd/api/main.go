@@ -99,6 +99,7 @@ func main() {
 	categoryRepo := postgres.NewCategoryRepository(pool)
 	transactionRepo := postgres.NewTransactionRepository(pool)
 	transferRepo := postgres.NewTransferRepository(pool)
+	pendingActionRepo := postgres.NewPendingActionRepository(pool)
 
 	// 7. Parsers
 	csvParser := parsers.NewCSVParser()
@@ -125,6 +126,7 @@ func main() {
 		CategoryService:     categoryService,
 		TransactionService:  transactionService,
 		TransferService:     transferService,
+		PendingActionRepo:   pendingActionRepo,
 		CSVIngestionService: csvIngestionService,
 		AppConfig:           cfg,
 		Logger:              logger,

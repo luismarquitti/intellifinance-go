@@ -31,6 +31,7 @@ type RouterConfig struct {
 	Logger                    *slog.Logger
 	CORSOptions               *cors.Options
 	ReadinessChecker          ports.ReadinessChecker
+	PendingActionRepo         ports.PendingActionRepository
 }
 
 // NewRouter builds and configures the Chi v5 router with all required middlewares,
@@ -85,6 +86,10 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	var csvHandler *handlers.CSVIngestHandler
 	if cfg.CSVIngestionService != nil {
 		csvHandler = handlers.NewCSVIngestHandler(cfg.CSVIngestionService)
+	}
+	var pendingActionHandler *handlers.PendingActionHandler
+	if cfg.PendingActionRepo != nil {
+		pendingActionHandler = handlers.NewPendingActionHandler(cfg.PendingActionRepo, cfg.TransactionService)
 	}
 	var sessionHandler *handlers.SessionHandler
 	if cfg.AppConfig != nil {
@@ -163,6 +168,14 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				r.Post("/confirm", transferHandler.ConfirmTransfer)
 				r.Post("/", transferHandler.CreateTransfer)
 				r.Post("/unlink", transferHandler.UnlinkTransfer)
+			})
+		}
+
+		if pendingActionHandler != nil {
+			sub.Route("/pending-actions", func(r chi.Router) {
+				r.Get("/", pendingActionHandler.ListPending)
+				r.Post("/{id}/approve", pendingActionHandler.Approve)
+				r.Post("/{id}/reject", pendingActionHandler.Reject)
 			})
 		}
 	}
