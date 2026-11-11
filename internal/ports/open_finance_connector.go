@@ -37,14 +37,28 @@ type ExternalAccount struct {
 
 // ExternalTransaction represents a transaction record returned from an Open Finance aggregator.
 type ExternalTransaction struct {
-	ID            string          `json:"id"`
-	AccountID     string          `json:"account_id"`
-	Date          time.Time       `json:"date"`
-	Amount        decimal.Decimal `json:"amount"` // Signed: negative = expense, positive = income
-	Description   string          `json:"description"`
-	CategoryHint  string          `json:"category_hint,omitempty"`
-	PaymentMethod string          `json:"payment_method,omitempty"`
-	Status        string          `json:"status"` // COMPLETED, PENDING
+	ID                string          `json:"id"`
+	AccountID         string          `json:"account_id"`
+	BillID            string          `json:"bill_id,omitempty"`
+	Date              time.Time       `json:"date"`
+	Amount            decimal.Decimal `json:"amount"` // Signed: negative = expense, positive = income
+	Description       string          `json:"description"`
+	CategoryHint      string          `json:"category_hint,omitempty"`
+	PaymentMethod     string          `json:"payment_method,omitempty"`
+	Status            string          `json:"status"` // COMPLETED, PENDING
+	InstallmentNumber int             `json:"installment_number,omitempty"`
+	TotalInstallments int             `json:"total_installments,omitempty"`
+}
+
+// ExternalBill represents a credit card invoice cycle returned from an Open Finance aggregator.
+type ExternalBill struct {
+	ID                   string           `json:"id"`
+	DueDate              time.Time        `json:"due_date"`
+	ClosingDate          *time.Time       `json:"closing_date,omitempty"`
+	TotalAmount          decimal.Decimal  `json:"total_amount"`
+	MinimumPaymentAmount *decimal.Decimal `json:"minimum_payment_amount,omitempty"`
+	Status               string           `json:"status"` // OPEN, CLOSED, OVERDUE, PAID
+	AllowsInstallments   bool             `json:"allows_installments"`
 }
 
 // ItemStatus represents the synchronization health and lifecycle state of a bank connection.
@@ -91,6 +105,9 @@ type OpenFinanceConnector interface {
 
 	// FetchTransactions retrieves transactions for an external account in a date interval.
 	FetchTransactions(ctx context.Context, accountID string, from, to time.Time) ([]ExternalTransaction, error)
+
+	// FetchBills retrieves credit card invoices/bills for an external account.
+	FetchBills(ctx context.Context, accountID string) ([]ExternalBill, error)
 
 	// TriggerSync requests an on-demand synchronization cycle for an item.
 	TriggerSync(ctx context.Context, itemID string) error
