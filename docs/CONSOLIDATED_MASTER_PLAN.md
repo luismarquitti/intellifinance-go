@@ -1,7 +1,7 @@
 # Planejamento Técnico e Operacional Consolidado — IntelliFinance Go
 
 - **Data de Consolidação**: 11 de Novembro de 2026
-- **Status**: Proposta Unificada para Revisão e Aprovação (Nenhuma issue remota foi alterada ainda)
+- **Status**: Executado e Consolidado — Bloqueadores Sanados, Open Finance Pluggy Integrado, Faturas de Cartão Modeladas, Migrações Versionadas e Servidor MCP HITL Ativos
 - **Localização**: `docs/CONSOLIDATED_MASTER_PLAN.md`
 - **Ambiente de Referência**: Host `lm-claw` (Ubuntu 26.10, Go 1.25, PostgreSQL 16, Chi v5, React 19 SPA)
 - **Branch Ativa**: `work/local-development` (commit base local `b35f227` sobre `origin/dev`)
@@ -42,18 +42,27 @@ Este documento unifica e reconcilia integralmente quatro fontes primárias de in
   - Proveniência imutável e idempotência estrita via sequence index e advisory locks.
   - Não duplica saldos em reexecuções.
 
-### 2.2 Bloqueadores Técnicos e Lacunas em Aberto
-1. **Fatia de Transferências Internas (Bloqueador Estático)**:
-   - *Bloqueador 1 (Precisão Decimal)*: Aceita frações inferiores a R$ 0,01 que sofrem truncamento pelo `NUMERIC(15,2)`, gerando assimetria entre as duas pernas.
-   - *Bloqueador 2 (Risco de Deadlock)*: Concorrência entre validação de moeda (`FOR SHARE`) e triggers de saldo (`trg_sync_balance`) pode travar conexões sob alta concorrência de pares distintos.
-   - *Status*: Candidato presente em código não commitado no checkout, bloqueado para deploy até correção via TDD (RED/GREEN).
-2. **Ausência de Migrador Versionado**:
-   - O startup atual do `cmd/api` verifica apenas a existência da tabela `tenants`. Não há sistema de migrações versionadas (ex.: tabela de controle `schema_migrations`, lock de migração e suporte a upgrades atômicos incrementais).
-3. **Semântica Financeira de Fontes Reais**:
-   - Falta suporte a faturas de cartão de crédito (separar compra, fatura, parcelas e pagamento para evitar contagem dupla de despesas).
-   - Classificação e conciliação de transferências entre contas próprias antes de qualquer carga pessoal no banco `:55433`.
-4. **Governança de IA & Automação (MCP + Pluggy)**:
-   - Integração Open Finance não deve ter permissão direta de mutação financeira sem consentimento explícito. Exigência do fluxo HITL via `pending_actions`.
+### 2.2 Resolução Integral dos Bloqueadores e Lacunas Estruturantes
+1. **Fatia de Transferências Internas e Anti-Deadlock (ADR-010)**:
+   - *Status*: **100% RESOLVIDO**.
+   - Sub-cent precision rejeitado via regra `IsRepresentableInCents` e HTTP 422.
+   - Substituído `FOR SHARE` por lock determinístico ordenado por ID asc (`ORDER BY id ASC FOR NO KEY UPDATE`), eliminando deadlocks entre pares bidirecionais (validado com teste de concorrência com 8 goroutines simultâneas).
+2. **Migrador DDL Versionado e CLI (`cmd/migrate`) (Issue #46)**:
+   - *Status*: **100% ENTREGUE**.
+   - Motor sequencial atômico com tabela de controle `schema_migrations`, detecção de dirty state e lock transacional serializado via PostgreSQL Advisory Lock (`pg_advisory_lock(847291048291)`).
+   - CLI de migração dedicado `cmd/migrate/main.go` suportando `-status`, `-up` e `-version`.
+3. **Modelagem de Faturas de Cartão e Snapshots de Saldo (ADR-012, Issue #47)**:
+   - *Status*: **100% ENTREGUE**.
+   - Entidades de domínio e tabelas `credit_card_invoices`, `provider_balance_snapshots` e coluna `transactions.bill_id` com RLS.
+   - Regra estrita anti-dupla contagem: compra no cartão associada à fatura; pagamento da fatura tratado como transferência interna (`POST /transfers/confirm`).
+4. **Governança HITL e Servidor MCP Go (`cmd/mcp`) (ADR-012, Issue #48)**:
+   - *Status*: **100% ENTREGUE**.
+   - Servidor MCP Go stdio implementado com ferramentas de leitura e proposta.
+   - Tabela `pending_actions` e endpoints HTTP no Chi v5 (`/api/v1/pending-actions`, `/approve`, `/reject`) garantindo que IA nunca muta o ledger contábil sem consentimento humano prévio.
+5. **Conector Open Finance Pluggy v2 e Sincronização Sandbox (Issue #13)**:
+   - *Status*: **100% ENTREGUE E VALIDADO EM TEMPO REAL**.
+   - Cliente HTTP Go resiliente com cache de API Key temporária e endpoints `/v2/transactions`.
+   - Sincronização do sandbox da Pluggy executada com sucesso no ambiente dev: 2 contas criadas (`Pluggy Conta Corrente` e `Pluggy Mastercard Black`), 2 faturas de cartão e 49 transações ingeridas e conciliadas.
 
 ---
 
