@@ -18,12 +18,16 @@ import (
 
 // CategoryHandler handles HTTP requests for budget categories.
 type CategoryHandler struct {
-	service ports.CategoryService
+	service     ports.CategoryService
+	ruleService ports.CategoryRuleService
 }
 
-// NewCategoryHandler constructs a new CategoryHandler injecting the CategoryService port.
-func NewCategoryHandler(service ports.CategoryService) *CategoryHandler {
-	return &CategoryHandler{service: service}
+// NewCategoryHandler constructs a new CategoryHandler injecting the CategoryService and optional CategoryRuleService ports.
+func NewCategoryHandler(service ports.CategoryService, ruleService ports.CategoryRuleService) *CategoryHandler {
+	return &CategoryHandler{
+		service:     service,
+		ruleService: ruleService,
+	}
 }
 
 // ListCategories handles GET /categories.
@@ -151,7 +155,6 @@ func (h *CategoryHandler) UpdateCategory(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-
 	if invalidParams := req.Validate(); len(invalidParams) > 0 {
 		prob := problem.NewValidationFailed(r.URL.Path, "Category update validation failed.", invalidParams)
 		problem.Render(w, r, prob)
@@ -204,4 +207,28 @@ func (h *CategoryHandler) UpdateCategory(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(dto.ToCategoryResponse(cat))
+}
+
+// AutoCategorizeScan handles POST /categories/auto-categorize-scan.
+func (h *CategoryHandler) AutoCategorizeScan(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return
+	}
+
+	if h.ruleService == nil {
+		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Category rule service is not configured."))
+		return
+	}
+
+	res, err := h.ruleService.ScanAndPropose(r.Context(), tenantID)
+	if err != nil {
+		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed running auto-categorization scan: "+err.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(res)
 }

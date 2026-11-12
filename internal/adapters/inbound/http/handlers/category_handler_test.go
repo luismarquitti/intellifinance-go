@@ -76,7 +76,7 @@ func TestCategoryHandler_CreateCategory(t *testing.T) {
 
 	tenantID := uuid.New()
 	service := newMockCategoryService()
-	handler := handlers.NewCategoryHandler(service)
+	handler := handlers.NewCategoryHandler(service, nil)
 
 	t.Run("Success 201", func(t *testing.T) {
 		payload := []byte(`{
@@ -128,7 +128,7 @@ func TestCategoryHandler_ListCategories(t *testing.T) {
 
 	tenantID := uuid.New()
 	service := newMockCategoryService()
-	handler := handlers.NewCategoryHandler(service)
+	handler := handlers.NewCategoryHandler(service, nil)
 
 	parent, _ := domain.NewCategory(tenantID, nil, "Parent", domain.TransactionTypeExpense, true)
 	sub, _ := domain.NewCategory(tenantID, &parent.ID, "Child", domain.TransactionTypeExpense, false)
@@ -166,7 +166,7 @@ func TestCategoryHandler_UpdateCategory(t *testing.T) {
 
 	tenantID := uuid.New()
 	service := newMockCategoryService()
-	handler := handlers.NewCategoryHandler(service)
+	handler := handlers.NewCategoryHandler(service, nil)
 
 	cat, _ := domain.NewCategory(tenantID, nil, "Old Cat", domain.TransactionTypeExpense, false)
 	_ = service.Create(context.Background(), cat)

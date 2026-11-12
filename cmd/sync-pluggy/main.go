@@ -91,6 +91,7 @@ func main() {
 	txRepo := postgres.NewTransactionRepository(pool)
 	invRepo := postgres.NewInvoiceRepository(pool)
 	snapRepo := postgres.NewProviderBalanceSnapshotRepository(pool)
+	catRepo := postgres.NewCategoryRepository(pool)
 	txService := app.NewTransactionService(txRepo)
 
 	// 1. Fetch accounts from Pluggy
@@ -319,6 +320,20 @@ func main() {
 				"amount", act.Payload["amount"],
 			)
 		}
+	}
+
+	// 6. Automatic Category Matching & Proposal Scan
+	logger.Info("running automatic category matching scan...")
+	categoryMatcher := app.NewCategoryMatcher(txRepo, catRepo, pendingActionRepo)
+	catScanResult, catErr := categoryMatcher.ScanAndPropose(ctx, tenantID)
+	if catErr != nil {
+		logger.Warn("failed running category matching scan", "err", catErr)
+	} else {
+		logger.Info("category matching scan complete",
+			"scanned_txs", catScanResult.ScannedTransactionsCount,
+			"already_categorized", catScanResult.AlreadyCategorizedCount,
+			"proposed_actions", catScanResult.ProposedActionsCount,
+		)
 	}
 
 	logger.Info("Open Finance sync completed successfully!")

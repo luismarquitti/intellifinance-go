@@ -92,3 +92,36 @@ export interface TransactionListResponse {
   items: Transaction[]
   pagination: Pagination
 }
+
+
+export interface Invoice {
+  id: string
+  tenant_id: string
+  account_id: string
+  external_bill_id?: string
+  due_date: string
+  total_amount: string
+  minimum_amount: string
+  status: 'OPEN' | 'CLOSED' | 'PAID' | 'OVERDUE'
+  transactions_count: number
+}
+
+export interface CashflowProjection {
+  current_liquid_balance: string
+  total_unpaid_invoices: string
+  projected_net_liquidity: string
+  as_of: string
+  unpaid_invoices_count: number
+  invoices: Invoice[]
+}
+
+export interface PendingAction {
+  id: string
+  tenant_id: string
+  created_by_agent: string
+  action_type: 'RECONCILE_TRANSFER' | 'CATEGORIZE_TRANSACTION'
+  payload: Record<string, any>
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED'
+  metadata: Record<string, any>
+  created_at: string
+}

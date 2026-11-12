@@ -1,16 +1,20 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Header } from './components/Header'
 import { KPICards } from './components/KPICards'
+import { CashflowCard } from './components/CashflowCard'
 import { FilterBar } from './components/FilterBar'
 import { TransactionTable } from './components/TransactionTable'
 import { BulkActionsBar } from './components/BulkActionsBar'
 import { CSVImportModal } from './components/CSVImportModal'
 import { EditTransactionModal } from './components/EditTransactionModal'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal'
+import { PendingActionsModal } from './components/PendingActionsModal'
 import {
   Account,
   Category,
+  CashflowProjection,
   Pagination,
+  PendingAction,
   Session,
   Transaction,
   TransactionFilters,
@@ -21,7 +25,9 @@ import {
   batchUpdateCategory,
   deleteTransaction,
   fetchAccounts,
+  fetchCashflowProjection,
   fetchCategories,
+  fetchPendingActions,
   fetchSession,
   fetchSummary,
   fetchTransactions,
@@ -34,6 +40,8 @@ export const App: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [summary, setSummary] = useState<TransactionSummary | null>(null)
+  const [projection, setProjection] = useState<CashflowProjection | null>(null)
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([])
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 50,
@@ -53,22 +61,27 @@ export const App: React.FC = () => {
 
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null)
   const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
 
-  // Load static context (Session, Accounts, Categories)
+  // Load static context (Session, Accounts, Categories, Cashflow, Pending Actions)
   const loadStaticData = useCallback(async () => {
     try {
-      const [sess, accs, cats] = await Promise.all([
+      const [sess, accs, cats, proj, acts] = await Promise.all([
         fetchSession().catch(() => null),
         fetchAccounts().catch(() => []),
         fetchCategories().catch(() => []),
+        fetchCashflowProjection().catch(() => null),
+        fetchPendingActions().catch(() => []),
       ])
       if (sess) setSession(sess)
       setAccounts(accs)
       setCategories(cats)
+      setProjection(proj)
+      setPendingActions(acts)
     } catch (err) {
       console.error('Failed to load initial data:', err)
     }
@@ -203,13 +216,18 @@ export const App: React.FC = () => {
       {/* Header */}
       <Header
         session={session}
+        pendingCount={pendingActions.length}
         onOpenImportModal={() => setIsImportModalOpen(true)}
+        onOpenPendingModal={() => setIsPendingModalOpen(true)}
       />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* KPI Summary Cards */}
         <KPICards summary={summary} isLoading={isLoading} />
+
+        {/* Open Finance Cashflow Projection */}
+        <CashflowCard projection={projection} isLoading={isLoading} />
 
         {/* Filter & Search Bar */}
         <FilterBar
@@ -255,6 +273,13 @@ export const App: React.FC = () => {
         accounts={accounts}
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={handleRefresh}
+      />
+
+      <PendingActionsModal
+        isOpen={isPendingModalOpen}
+        actions={pendingActions}
+        onClose={() => setIsPendingModalOpen(false)}
+        onRefresh={handleRefresh}
       />
 
       <EditTransactionModal

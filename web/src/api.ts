@@ -1,4 +1,6 @@
 import {
+  CashflowProjection,
+  PendingAction,
   Account,
   Category,
   CSVIngestResult,
@@ -145,4 +147,73 @@ export async function importCSV(
     body: formData,
   })
   return handleResponse<CSVIngestResult>(res)
+}
+
+export async function fetchCashflowProjection(): Promise<CashflowProjection> {
+  const res = await fetch(`${BASE_URL}/cashflow/projection`)
+  return handleResponse<CashflowProjection>(res)
+}
+
+export async function fetchPendingActions(): Promise<PendingAction[]> {
+  const res = await fetch(`${BASE_URL}/pending-actions`)
+  const data = await handleResponse<PendingAction[]>(res)
+  return data || []
+}
+
+export async function approvePendingAction(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/pending-actions/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  await handleResponse<void>(res)
+}
+
+export async function rejectPendingAction(id: string, reason?: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/pending-actions/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  await handleResponse<void>(res)
+}
+
+export async function batchApprovePendingActions(payload: {
+  action_ids?: string[]
+  all?: boolean
+  action_type?: string
+}): Promise<{ approved_count: number; failed_count: number }> {
+  const res = await fetch(`${BASE_URL}/pending-actions/batch-approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleResponse<{ approved_count: number; failed_count: number }>(res)
+}
+
+export async function triggerAutoCategorizeScan(): Promise<{
+  scanned_transactions_count: number
+  proposed_actions_count: number
+}> {
+  const res = await fetch(`${BASE_URL}/categories/auto-categorize-scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return handleResponse<{
+    scanned_transactions_count: number
+    proposed_actions_count: number
+  }>(res)
+}
+
+export async function triggerReconcileScan(): Promise<{
+  scanned_transactions_count: number
+  proposed_actions_count: number
+}> {
+  const res = await fetch(`${BASE_URL}/transfers/reconcile-scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return handleResponse<{
+    scanned_transactions_count: number
+    proposed_actions_count: number
+  }>(res)
 }

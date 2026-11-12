@@ -23,6 +23,7 @@ type RouterConfig struct {
 	TransactionService        ports.TransactionService
 	TransferService           ports.TransferService
 	TransferReconcileService  ports.TransferReconciliationService
+	CategoryRuleService       ports.CategoryRuleService
 	CSVIngestionService       ports.CSVIngestionService
 	InvoiceService            ports.InvoiceService
 	InvoiceRepo               ports.InvoiceRepository
@@ -80,7 +81,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 	// Handlers initialization
 	accountHandler := handlers.NewAccountHandler(cfg.AccountService)
-	categoryHandler := handlers.NewCategoryHandler(cfg.CategoryService)
+	categoryHandler := handlers.NewCategoryHandler(cfg.CategoryService, cfg.CategoryRuleService)
 	transactionHandler := handlers.NewTransactionHandler(cfg.TransactionService)
 	var transferHandler *handlers.TransferHandler
 	if cfg.TransferService != nil {
@@ -146,11 +147,12 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			r.Patch("/{id}", accountHandler.UpdateAccount)
 		})
 
-		// Categories CRUD
+		// Categories CRUD & Auto-Categorization
 		sub.Route("/categories", func(r chi.Router) {
 			r.Get("/", categoryHandler.ListCategories)
 			r.Post("/", categoryHandler.CreateCategory)
 			r.Patch("/{id}", categoryHandler.UpdateCategory)
+			r.Post("/auto-categorize-scan", categoryHandler.AutoCategorizeScan)
 		})
 
 		// Transactions CRUD
@@ -184,6 +186,8 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				r.Get("/", pendingActionHandler.ListPending)
 				r.Post("/{id}/approve", pendingActionHandler.Approve)
 				r.Post("/{id}/reject", pendingActionHandler.Reject)
+				r.Post("/batch-approve", pendingActionHandler.ApproveBatch)
+				r.Post("/batch-reject", pendingActionHandler.RejectBatch)
 			})
 		}
 

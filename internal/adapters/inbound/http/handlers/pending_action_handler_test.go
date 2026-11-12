@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/handlers"
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/middleware"
+	"github.com/luismarquitti/intellifinance-go/internal/adapters/inbound/http/dto"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -160,4 +161,45 @@ func TestPendingActionHandler_ApproveAndReject(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recReconcile.Code)
 	assert.Equal(t, domain.ActionStatusExecuted, mockRepo.actions[actionReconcile.ID].Status)
+
+	// Test Batch Approve
+	r.Post("/pending-actions/batch-approve", handler.ApproveBatch)
+	r.Post("/pending-actions/batch-reject", handler.RejectBatch)
+
+	batchAct1, _ := domain.NewPendingAction(tenantID, "test", domain.ActionTypeCategorizeTransaction, map[string]any{
+		"transaction_id": uuid.New().String(),
+	})
+	batchAct2, _ := domain.NewPendingAction(tenantID, "test", domain.ActionTypeCategorizeTransaction, map[string]any{
+		"transaction_id": uuid.New().String(),
+	})
+	_ = mockRepo.Save(context.Background(), batchAct1)
+	_ = mockRepo.Save(context.Background(), batchAct2)
+
+	batchReqBody, _ := json.Marshal(dto.BatchApproveRequest{
+		ActionIDs: []uuid.UUID{batchAct1.ID, batchAct2.ID},
+	})
+	reqBatch := httptest.NewRequest(http.MethodPost, "/pending-actions/batch-approve", bytes.NewReader(batchReqBody))
+	reqBatch = reqBatch.WithContext(ctx)
+	recBatch := httptest.NewRecorder()
+	r.ServeHTTP(recBatch, reqBatch)
+
+	assert.Equal(t, http.StatusOK, recBatch.Code)
+	assert.Equal(t, domain.ActionStatusExecuted, mockRepo.actions[batchAct1.ID].Status)
+	assert.Equal(t, domain.ActionStatusExecuted, mockRepo.actions[batchAct2.ID].Status)
+
+	// Test Batch Reject
+	rejectAct, _ := domain.NewPendingAction(tenantID, "test", domain.ActionTypeCategorizeTransaction, nil)
+	_ = mockRepo.Save(context.Background(), rejectAct)
+
+	rejectBatchReqBody, _ := json.Marshal(dto.BatchRejectRequest{
+		ActionIDs: []uuid.UUID{rejectAct.ID},
+		Reason:    "Batch rejected",
+	})
+	reqRejectBatch := httptest.NewRequest(http.MethodPost, "/pending-actions/batch-reject", bytes.NewReader(rejectBatchReqBody))
+	reqRejectBatch = reqRejectBatch.WithContext(ctx)
+	recRejectBatch := httptest.NewRecorder()
+	r.ServeHTTP(recRejectBatch, reqRejectBatch)
+
+	assert.Equal(t, http.StatusOK, recRejectBatch.Code)
+	assert.Equal(t, domain.ActionStatusRejected, mockRepo.actions[rejectAct.ID].Status)
 }
