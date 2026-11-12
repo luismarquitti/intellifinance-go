@@ -1,18 +1,26 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
 import { KPICards } from './components/KPICards'
 import { CashflowCard } from './components/CashflowCard'
+import { AccountsRail } from './components/AccountsRail'
+import { InvoicesTimeline } from './components/InvoicesTimeline'
+import { CategoryBreakdownPanel } from './components/CategoryBreakdownPanel'
+import { BudgetOverviewPanel } from './components/BudgetOverviewPanel'
 import { FilterBar } from './components/FilterBar'
 import { TransactionTable } from './components/TransactionTable'
 import { BulkActionsBar } from './components/BulkActionsBar'
+import { QuickTransactionModal } from './components/QuickTransactionModal'
 import { CSVImportModal } from './components/CSVImportModal'
 import { EditTransactionModal } from './components/EditTransactionModal'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal'
 import { PendingActionsModal } from './components/PendingActionsModal'
 import {
   Account,
+  AppSection,
   Category,
   CashflowProjection,
+  Invoice,
   Pagination,
   PendingAction,
   Session,
@@ -27,6 +35,7 @@ import {
   fetchAccounts,
   fetchCashflowProjection,
   fetchCategories,
+  fetchInvoices,
   fetchPendingActions,
   fetchSession,
   fetchSummary,
@@ -34,10 +43,37 @@ import {
   updateTransaction,
 } from './api'
 
+const MONTH_NAMES = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+]
+
 export const App: React.FC = () => {
+  // Theme state: Light Mode default (false), Dark Mode optional (true)
+  const [isDark, setIsDark] = useState(false)
+  const [isPrivacyMode, setIsPrivacyMode] = useState(false)
+  const [activeSection, setActiveSection] = useState<AppSection>('overview')
+
+  // Global Month Selector state (defaults to All Periods so all Open Finance data is immediately visible, or user can step month-by-month)
+  const [monthCursor, setMonthCursor] = useState<Date>(() => new Date())
+  const [isAllPeriods, setIsAllPeriods] = useState(true)
+  const [monthlyBudgetLimit, setMonthlyBudgetLimit] = useState('12000.00')
+
+  // Domain Data state
   const [session, setSession] = useState<Session | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [summary, setSummary] = useState<TransactionSummary | null>(null)
   const [projection, setProjection] = useState<CashflowProjection | null>(null)
@@ -60,6 +96,7 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
 
   // Modals state
+  const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [isPendingModalOpen, setIsPendingModalOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
@@ -67,20 +104,71 @@ export const App: React.FC = () => {
   const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
 
-  // Load static context (Session, Accounts, Categories, Cashflow, Pending Actions)
+  // Synchronize HTML root `.dark` class with React state (Light Mode is default)
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark)
+  }, [isDark])
+
+  const selectedMonthLabel = useMemo(() => {
+    return `${MONTH_NAMES[monthCursor.getMonth()]} ${monthCursor.getFullYear()}`
+  }, [monthCursor])
+
+  const applyMonthBoundsToFilters = useCallback((cursor: Date) => {
+    const y = cursor.getFullYear()
+    const m = cursor.getMonth()
+    const firstDay = new Date(y, m, 1).toISOString().split('T')[0]
+    const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0]
+    setIsAllPeriods(false)
+    setFilters((prev) => ({
+      ...prev,
+      from_date: firstDay,
+      to_date: lastDay,
+      page: 1,
+    }))
+  }, [])
+
+  const handlePrevMonth = () => {
+    const prev = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1)
+    setMonthCursor(prev)
+    applyMonthBoundsToFilters(prev)
+  }
+
+  const handleNextMonth = () => {
+    const next = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1)
+    setMonthCursor(next)
+    applyMonthBoundsToFilters(next)
+  }
+
+  const handleToggleAllPeriods = () => {
+    if (isAllPeriods) {
+      applyMonthBoundsToFilters(monthCursor)
+    } else {
+      setIsAllPeriods(true)
+      setFilters((prev) => ({
+        ...prev,
+        from_date: undefined,
+        to_date: undefined,
+        page: 1,
+      }))
+    }
+  }
+
+  // Load static context (Session, Accounts, Categories, Cashflow, Invoices, Pending Actions)
   const loadStaticData = useCallback(async () => {
     try {
-      const [sess, accs, cats, proj, acts] = await Promise.all([
+      const [sess, accs, cats, proj, invs, acts] = await Promise.all([
         fetchSession().catch(() => null),
         fetchAccounts().catch(() => []),
         fetchCategories().catch(() => []),
         fetchCashflowProjection().catch(() => null),
+        fetchInvoices().catch(() => []),
         fetchPendingActions().catch(() => []),
       ])
       if (sess) setSession(sess)
       setAccounts(accs)
       setCategories(cats)
       setProjection(proj)
+      setInvoices(invs)
       setPendingActions(acts)
     } catch (err) {
       console.error('Failed to load initial data:', err)
@@ -122,10 +210,14 @@ export const App: React.FC = () => {
 
   // Filter actions
   const handleFilterChange = (newFilters: Partial<TransactionFilters>) => {
+    if (newFilters.from_date !== undefined || newFilters.to_date !== undefined) {
+      setIsAllPeriods(!newFilters.from_date && !newFilters.to_date)
+    }
     setFilters((prev) => ({ ...prev, ...newFilters }))
   }
 
   const handleResetFilters = () => {
+    setIsAllPeriods(true)
     setFilters({
       page: 1,
       limit: 50,
@@ -163,7 +255,10 @@ export const App: React.FC = () => {
   }
 
   // Inline category classification (1-click)
-  const handleInlineCategoryChange = async (txId: string, categoryId: string | null) => {
+  const handleInlineCategoryChange = async (
+    txId: string,
+    categoryId: string | null
+  ) => {
     try {
       await updateTransaction(txId, { category_id: categoryId })
       handleRefresh()
@@ -211,52 +306,219 @@ export const App: React.FC = () => {
     }
   }
 
+  const hasActiveFilters = Boolean(
+    filters.search ||
+      filters.account_id ||
+      filters.category_id ||
+      filters.uncategorized ||
+      filters.type ||
+      filters.from_date ||
+      filters.to_date
+  )
+
   return (
-    <div className="min-h-screen bg-[#0E1410] text-[#E8EFEA] flex flex-col font-sans">
-      {/* Header */}
-      <Header
+    <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-[var(--bui-bg-canvas)] text-[var(--bui-text-primary)]">
+      {/* Left Board UI Sidebar */}
+      <Sidebar
+        activeSection={activeSection}
+        onSelectSection={setActiveSection}
         session={session}
+        isDark={isDark}
+        onToggleTheme={() => setIsDark((prev) => !prev)}
+        isPrivacyMode={isPrivacyMode}
+        onTogglePrivacy={() => setIsPrivacyMode((prev) => !prev)}
+        selectedMonthLabel={selectedMonthLabel}
+        isAllPeriods={isAllPeriods}
+        onPrevMonth={handlePrevMonth}
+        onNextMonth={handleNextMonth}
+        onToggleAllPeriods={handleToggleAllPeriods}
+        invoicesCount={invoices.length}
+        transactionsTotal={pagination.total}
         pendingCount={pendingActions.length}
-        onOpenImportModal={() => setIsImportModalOpen(true)}
-        onOpenPendingModal={() => setIsPendingModalOpen(true)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* KPI Summary Cards */}
-        <KPICards summary={summary} isLoading={isLoading} />
-
-        {/* Open Finance Cashflow Projection */}
-        <CashflowCard projection={projection} isLoading={isLoading} />
-
-        {/* Filter & Search Bar */}
-        <FilterBar
-          accounts={accounts}
-          categories={categories}
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onResetFilters={handleResetFilters}
+      {/* Right Main Workspace */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <Header
+          session={session}
+          activeSection={activeSection}
+          pendingCount={pendingActions.length}
+          isDark={isDark}
+          onToggleTheme={() => setIsDark((prev) => !prev)}
+          isPrivacyMode={isPrivacyMode}
+          onTogglePrivacy={() => setIsPrivacyMode((prev) => !prev)}
+          onOpenQuickEntryModal={() => setIsQuickEntryOpen(true)}
+          onOpenImportModal={() => setIsImportModalOpen(true)}
+          onOpenPendingModal={() => setIsPendingModalOpen(true)}
         />
 
-        {/* Transaction Table */}
-        <TransactionTable
-          transactions={transactions}
-          accounts={accounts}
-          categories={categories}
-          pagination={pagination}
-          selectedIds={selectedIds}
-          sortBy={filters.sort_by || 'date'}
-          sortOrder={filters.sort_order || 'desc'}
-          onToggleSelect={handleToggleSelect}
-          onToggleSelectAll={handleToggleSelectAll}
-          onSort={handleSort}
-          onPageChange={(page) => handleFilterChange({ page })}
-          onEdit={(tx) => setEditingTx(tx)}
-          onDelete={(tx) => setDeletingTx(tx)}
-          onInlineCategoryChange={handleInlineCategoryChange}
-          isLoading={isLoading}
-        />
-      </main>
+        {/* Section Content */}
+        <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+          {/* Top KPI Row is visible on Overview, Accounts, and Transactions */}
+          {activeSection !== 'hitl' && (
+            <KPICards
+              summary={summary}
+              projection={projection}
+              monthlyBudgetLimit={monthlyBudgetLimit}
+              isPrivacyMode={isPrivacyMode}
+              isLoading={isLoading}
+              onInspectInvoices={() => setActiveSection('accounts')}
+              onInspectBudgets={() => setActiveSection('budgets')}
+            />
+          )}
+
+          {/* SECTION 1: OVERVIEW (VISÃO GERAL) */}
+          {activeSection === 'overview' && (
+            <>
+              <CashflowCard
+                projection={projection}
+                isPrivacyMode={isPrivacyMode}
+                isLoading={isLoading}
+                onInspectInvoices={() => setActiveSection('accounts')}
+              />
+
+              <CategoryBreakdownPanel
+                transactions={transactions}
+                categories={categories}
+                selectedCategoryId={filters.category_id}
+                uncategorizedFilter={filters.uncategorized}
+                isPrivacyMode={isPrivacyMode}
+                onSelectCategory={(categoryId, uncategorized) =>
+                  handleFilterChange({
+                    category_id: categoryId,
+                    uncategorized: uncategorized || undefined,
+                    page: 1,
+                  })
+                }
+              />
+
+              <AccountsRail
+                accounts={accounts}
+                invoices={invoices}
+                selectedAccountId={filters.account_id}
+                isPrivacyMode={isPrivacyMode}
+                onSelectAccount={(accountId) =>
+                  handleFilterChange({ account_id: accountId, page: 1 })
+                }
+                onOpenInvoicesHub={() => setActiveSection('accounts')}
+                onAccountCreated={handleRefresh}
+              />
+
+              <FilterBar
+                accounts={accounts}
+                categories={categories}
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                onResetFilters={handleResetFilters}
+              />
+
+              <TransactionTable
+                transactions={transactions}
+                accounts={accounts}
+                categories={categories}
+                pagination={pagination}
+                selectedIds={selectedIds}
+                sortBy={filters.sort_by || 'date'}
+                sortOrder={filters.sort_order || 'desc'}
+                isPrivacyMode={isPrivacyMode}
+                hasActiveFilters={hasActiveFilters}
+                onResetFilters={handleResetFilters}
+                onToggleSelect={handleToggleSelect}
+                onToggleSelectAll={handleToggleSelectAll}
+                onSort={handleSort}
+                onPageChange={(page) => handleFilterChange({ page })}
+                onEdit={(tx) => setEditingTx(tx)}
+                onDelete={(tx) => setDeletingTx(tx)}
+                onInlineCategoryChange={handleInlineCategoryChange}
+                isLoading={isLoading}
+              />
+            </>
+          )}
+
+          {/* SECTION 2: ACCOUNTS & INVOICES HUB */}
+          {activeSection === 'accounts' && (
+            <>
+              <AccountsRail
+                accounts={accounts}
+                invoices={invoices}
+                selectedAccountId={filters.account_id}
+                isPrivacyMode={isPrivacyMode}
+                onSelectAccount={(accountId) =>
+                  handleFilterChange({ account_id: accountId, page: 1 })
+                }
+                onAccountCreated={handleRefresh}
+              />
+
+              <InvoicesTimeline
+                invoices={invoices}
+                accounts={accounts}
+                categories={categories}
+                isPrivacyMode={isPrivacyMode}
+                onInlineCategoryChange={handleInlineCategoryChange}
+              />
+            </>
+          )}
+
+          {/* SECTION 3: TRANSACTIONS EXPLORER */}
+          {activeSection === 'transactions' && (
+            <>
+              <FilterBar
+                accounts={accounts}
+                categories={categories}
+                filters={filters}
+                onFilterChange={handleFilterChange}
+                onResetFilters={handleResetFilters}
+              />
+
+              <TransactionTable
+                transactions={transactions}
+                accounts={accounts}
+                categories={categories}
+                pagination={pagination}
+                selectedIds={selectedIds}
+                sortBy={filters.sort_by || 'date'}
+                sortOrder={filters.sort_order || 'desc'}
+                isPrivacyMode={isPrivacyMode}
+                hasActiveFilters={hasActiveFilters}
+                onResetFilters={handleResetFilters}
+                onToggleSelect={handleToggleSelect}
+                onToggleSelectAll={handleToggleSelectAll}
+                onSort={handleSort}
+                onPageChange={(page) => handleFilterChange({ page })}
+                onEdit={(tx) => setEditingTx(tx)}
+                onDelete={(tx) => setDeletingTx(tx)}
+                onInlineCategoryChange={handleInlineCategoryChange}
+                isLoading={isLoading}
+              />
+            </>
+          )}
+
+          {/* SECTION 4: BUDGETS & RECURRING COMMITMENTS */}
+          {activeSection === 'budgets' && (
+            <BudgetOverviewPanel
+              summary={summary}
+              transactions={transactions}
+              categories={categories}
+              monthlyBudgetLimit={monthlyBudgetLimit}
+              onChangeMonthlyBudgetLimit={setMonthlyBudgetLimit}
+              isPrivacyMode={isPrivacyMode}
+            />
+          )}
+
+          {/* SECTION 5: HITL AI REVIEW CENTER (INLINE) */}
+          {activeSection === 'hitl' && (
+            <PendingActionsModal
+              isOpen={true}
+              inlineMode={true}
+              isPrivacyMode={isPrivacyMode}
+              actions={pendingActions}
+              onClose={() => setActiveSection('overview')}
+              onRefresh={handleRefresh}
+            />
+          )}
+        </main>
+      </div>
 
       {/* Floating Bulk Actions Bar */}
       <BulkActionsBar
@@ -268,6 +530,14 @@ export const App: React.FC = () => {
       />
 
       {/* Modals */}
+      <QuickTransactionModal
+        isOpen={isQuickEntryOpen}
+        accounts={accounts}
+        categories={categories}
+        onClose={() => setIsQuickEntryOpen(false)}
+        onSuccess={handleRefresh}
+      />
+
       <CSVImportModal
         isOpen={isImportModalOpen}
         accounts={accounts}
@@ -277,6 +547,7 @@ export const App: React.FC = () => {
 
       <PendingActionsModal
         isOpen={isPendingModalOpen}
+        isPrivacyMode={isPrivacyMode}
         actions={pendingActions}
         onClose={() => setIsPendingModalOpen(false)}
         onRefresh={handleRefresh}

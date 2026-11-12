@@ -9,6 +9,10 @@ import {
   TransactionFilters,
   TransactionListResponse,
   TransactionSummary,
+  Invoice,
+  InvoiceDetailsResponse,
+  CreateTransactionPayload,
+  CreateAccountPayload,
 } from './types'
 
 const BASE_URL = '/api/v1'
@@ -40,6 +44,15 @@ export async function fetchAccounts(): Promise<Account[]> {
   const res = await fetch(`${BASE_URL}/accounts`)
   const data = await handleResponse<{ items: Account[] }>(res)
   return data.items || []
+}
+
+export async function createAccount(payload: CreateAccountPayload): Promise<Account> {
+  const res = await fetch(`${BASE_URL}/accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleResponse<Account>(res)
 }
 
 export async function fetchCategories(): Promise<Category[]> {
@@ -84,6 +97,17 @@ export async function fetchSummary(
   return handleResponse<TransactionSummary>(res)
 }
 
+export async function createTransaction(
+  payload: CreateTransactionPayload
+): Promise<Transaction> {
+  const res = await fetch(`${BASE_URL}/transactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleResponse<Transaction>(res)
+}
+
 export async function updateTransaction(
   id: string,
   data: Partial<{
@@ -96,6 +120,7 @@ export async function updateTransaction(
     notes: string
     status: string
     visibility: string
+    metadata: Record<string, any>
   }>
 ): Promise<Transaction> {
   const res = await fetch(`${BASE_URL}/transactions/${id}`, {
@@ -154,6 +179,20 @@ export async function fetchCashflowProjection(): Promise<CashflowProjection> {
   return handleResponse<CashflowProjection>(res)
 }
 
+export async function fetchInvoices(accountId?: string): Promise<Invoice[]> {
+  const params = new URLSearchParams()
+  if (accountId) params.set('account_id', accountId)
+  const qs = params.toString()
+  const res = await fetch(`${BASE_URL}/invoices${qs ? `?${qs}` : ''}`)
+  const data = await handleResponse<Invoice[]>(res)
+  return data || []
+}
+
+export async function fetchInvoiceDetails(id: string): Promise<InvoiceDetailsResponse> {
+  const res = await fetch(`${BASE_URL}/invoices/${id}`)
+  return handleResponse<InvoiceDetailsResponse>(res)
+}
+
 export async function fetchPendingActions(): Promise<PendingAction[]> {
   const res = await fetch(`${BASE_URL}/pending-actions`)
   const data = await handleResponse<PendingAction[]>(res)
@@ -188,6 +227,19 @@ export async function batchApprovePendingActions(payload: {
     body: JSON.stringify(payload),
   })
   return handleResponse<{ approved_count: number; failed_count: number }>(res)
+}
+
+export async function batchRejectPendingActions(payload: {
+  action_ids?: string[]
+  all?: boolean
+  reason?: string
+}): Promise<{ rejected_count: number; failed_count: number }> {
+  const res = await fetch(`${BASE_URL}/pending-actions/batch-reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleResponse<{ rejected_count: number; failed_count: number }>(res)
 }
 
 export async function triggerAutoCategorizeScan(): Promise<{

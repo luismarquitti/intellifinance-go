@@ -1,6 +1,7 @@
 export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER'
 export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'RECONCILED' | 'VOID'
-export type Visibility = 'SHARED' | 'PERSONAL' | 'RESTRICTED'
+export type Visibility = 'SHARED' | 'PERSONAL' | 'PRIVATE' | 'RESTRICTED'
+export type AppSection = 'overview' | 'accounts' | 'transactions' | 'budgets' | 'hitl'
 
 export interface Account {
   id: string
@@ -10,7 +11,9 @@ export interface Account {
   currency: string
   balance: string
   visibility: Visibility
+  institution_id?: string
   institution_name?: string
+  account_number_masked?: string
   color_hex: string
   icon_name: string
   is_active: boolean
@@ -41,7 +44,12 @@ export interface Transaction {
   visibility: Visibility
   source: string
   is_ai_categorized?: boolean
+  ai_confidence?: number
+  is_manually_verified?: boolean
+  transfer_peer_transaction_id?: string
+  bill_id?: string
   notes?: string
+  metadata?: Record<string, any>
 }
 
 export interface TransactionSummary {
@@ -93,26 +101,32 @@ export interface TransactionListResponse {
   pagination: Pagination
 }
 
-
 export interface Invoice {
   id: string
   tenant_id: string
   account_id: string
-  external_bill_id?: string
+  external_id?: string
   due_date: string
+  closing_date?: string
   total_amount: string
-  minimum_amount: string
+  minimum_payment: string
+  currency: string
   status: 'OPEN' | 'CLOSED' | 'PAID' | 'OVERDUE'
-  transactions_count: number
+  allows_installments?: boolean
+  metadata?: Record<string, any>
+}
+
+export interface InvoiceDetailsResponse {
+  invoice: Invoice
+  transactions: Transaction[]
 }
 
 export interface CashflowProjection {
-  current_liquid_balance: string
-  total_unpaid_invoices: string
-  projected_net_liquidity: string
-  as_of: string
-  unpaid_invoices_count: number
-  invoices: Invoice[]
+  available_balance: string
+  total_pending_bills: string
+  projected_net: string
+  upcoming_bills: Invoice[]
+  liquid_accounts: Account[]
 }
 
 export interface PendingAction {
@@ -124,4 +138,28 @@ export interface PendingAction {
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED'
   metadata: Record<string, any>
   created_at: string
+}
+
+export interface CreateTransactionPayload {
+  account_id: string
+  category_id?: string | null
+  date: string
+  amount: string
+  description: string
+  type: TransactionType
+  status?: TransactionStatus
+  visibility?: string
+  notes?: string
+  metadata?: Record<string, any>
+}
+
+export interface CreateAccountPayload {
+  name: string
+  type: string
+  currency: string
+  visibility: string
+  institution_name?: string
+  color_hex?: string
+  icon_name?: string
+  initial_balance?: string
 }

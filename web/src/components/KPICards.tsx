@@ -1,112 +1,207 @@
 import React from 'react'
-import { ArrowDownLeft, ArrowUpRight, Scale, ReceiptText } from 'lucide-react'
-import { TransactionSummary } from '../types'
+import {
+  Wallet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CreditCard,
+  CalendarClock,
+} from 'lucide-react'
+import { CashflowProjection, TransactionSummary } from '../types'
+import {
+  calculateDailyBudgetMetrics,
+  decimalToCents,
+  formatCurrency,
+  isNonNegativeCents,
+} from '../utils/money'
+
+export { formatCurrency } from '../utils/money'
 
 interface KPICardsProps {
   summary: TransactionSummary | null
+  projection?: CashflowProjection | null
+  monthlyBudgetLimit?: string
+  isPrivacyMode?: boolean
   isLoading?: boolean
+  onInspectInvoices?: () => void
+  onInspectBudgets?: () => void
 }
 
-export function formatCurrency(valueStr: string | number): string {
-  const num = typeof valueStr === 'string' ? parseFloat(valueStr) : valueStr
-  if (isNaN(num)) return 'R$ 0,00'
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(num)
-}
+export const KPICards: React.FC<KPICardsProps> = ({
+  summary,
+  projection,
+  monthlyBudgetLimit = '12000.00',
+  isPrivacyMode = false,
+  isLoading = false,
+  onInspectInvoices,
+  onInspectBudgets,
+}) => {
+  const liquidBalance = projection?.available_balance || '0.00'
+  const pendingBills = projection?.total_pending_bills || '0.00'
+  const projectedNet = projection?.projected_net || summary?.net_balance || '0.00'
+  const income = summary?.total_income || '0.00'
+  const expense = summary?.total_expense || '0.00'
+  const count = summary?.count || 0
 
-export const KPICards: React.FC<KPICardsProps> = ({ summary, isLoading }) => {
-  const income = summary ? parseFloat(summary.total_income || '0') : 0
-  const expense = summary ? parseFloat(summary.total_expense || '0') : 0
-  const net = summary ? parseFloat(summary.net_balance || '0') : 0
-  const count = summary ? summary.count : 0
+  const dailyMetrics = calculateDailyBudgetMetrics(monthlyBudgetLimit, expense)
+  const netPositive = isNonNegativeCents(projectedNet)
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Receitas */}
-      <div className="p-5 rounded-2xl bg-[#161D18] border border-[#2C362F] hover:border-[#3D4D41] transition-all duration-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#8E9E92]">
-            Total de Receitas
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3.5">
+      {/* 1. Saldo em Contas Líquidas */}
+      <div className="bui-card p-4 flex flex-col justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bui-inner flex items-center justify-center text-[var(--bui-text-secondary)] shrink-0">
+            <Wallet className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-medium text-[var(--bui-text-secondary)] truncate">
+            Saldo em Contas Líquidas
           </span>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <ArrowDownLeft className="w-5 h-5" />
-          </div>
         </div>
-        <div className="mt-3">
-          <div className="text-2xl font-extrabold text-[#E8EFEA] tracking-tight">
-            {isLoading ? <span className="opacity-40 animate-pulse">Carregando...</span> : formatCurrency(income)}
+        <div className="mt-3.5 flex items-end justify-between gap-2">
+          <div className="text-xl font-bold font-mono-num tracking-tight text-[var(--bui-text-primary)]">
+            {isLoading ? (
+              <span className="opacity-40 animate-pulse">...</span>
+            ) : (
+              formatCurrency(liquidBalance, isPrivacyMode)
+            )}
           </div>
-          <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
-            <span>● Entradas no período</span>
-          </p>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-lime shrink-0">
+            Disponível
+          </span>
         </div>
       </div>
 
-      {/* Despesas */}
-      <div className="p-5 rounded-2xl bg-[#161D18] border border-[#2C362F] hover:border-[#3D4D41] transition-all duration-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#8E9E92]">
-            Total de Despesas
+      {/* 2. Receitas no Período */}
+      <div className="bui-card p-4 flex flex-col justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bui-inner flex items-center justify-center text-[var(--bui-lime)] shrink-0">
+            <ArrowDownLeft className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-medium text-[var(--bui-text-secondary)] truncate">
+            Receitas no Período
           </span>
-          <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-            <ArrowUpRight className="w-5 h-5" />
-          </div>
         </div>
-        <div className="mt-3">
-          <div className="text-2xl font-extrabold text-[#E8EFEA] tracking-tight">
-            {isLoading ? <span className="opacity-40 animate-pulse">Carregando...</span> : formatCurrency(expense)}
+        <div className="mt-3.5 flex items-end justify-between gap-2">
+          <div className="text-xl font-bold font-mono-num tracking-tight text-[var(--bui-text-primary)]">
+            {isLoading ? (
+              <span className="opacity-40 animate-pulse">...</span>
+            ) : (
+              formatCurrency(income, isPrivacyMode)
+            )}
           </div>
-          <p className="text-xs text-rose-400 mt-1 flex items-center gap-1">
-            <span>● Saídas no período</span>
-          </p>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-lime shrink-0">
+            Entradas
+          </span>
         </div>
       </div>
 
-      {/* Saldo Líquido */}
-      <div className="p-5 rounded-2xl bg-[#161D18] border border-[#2C362F] hover:border-[#3D4D41] transition-all duration-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#8E9E92]">
-            Saldo Líquido
+      {/* 3. Despesas no Período */}
+      <div className="bui-card p-4 flex flex-col justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bui-inner flex items-center justify-center text-[var(--bui-rose)] shrink-0">
+            <ArrowUpRight className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-medium text-[var(--bui-text-secondary)] truncate">
+            Despesas ({count} lanç.)
           </span>
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${
-            net >= 0
-              ? 'bg-[#A5D6A7]/10 border-[#A5D6A7]/20 text-[#A5D6A7]'
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-          }`}>
-            <Scale className="w-5 h-5" />
-          </div>
         </div>
-        <div className="mt-3">
-          <div className={`text-2xl font-extrabold tracking-tight ${
-            net >= 0 ? 'text-[#A5D6A7]' : 'text-rose-400'
-          }`}>
-            {isLoading ? <span className="opacity-40 animate-pulse">Carregando...</span> : formatCurrency(net)}
+        <div className="mt-3.5 flex items-end justify-between gap-2">
+          <div className="text-xl font-bold font-mono-num tracking-tight text-[var(--bui-text-primary)]">
+            {isLoading ? (
+              <span className="opacity-40 animate-pulse">...</span>
+            ) : (
+              formatCurrency(
+                decimalToCents(expense) < 0n ? -decimalToCents(expense) : decimalToCents(expense),
+                isPrivacyMode
+              )
+            )}
           </div>
-          <p className="text-xs text-[#8E9E92] mt-1">
-            {net >= 0 ? 'Superávit acumulado' : 'Déficit no filtro'}
-          </p>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-rose shrink-0">
+            Saídas
+          </span>
         </div>
       </div>
 
-      {/* Total de Transações */}
-      <div className="p-5 rounded-2xl bg-[#161D18] border border-[#2C362F] hover:border-[#3D4D41] transition-all duration-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#8E9E92]">
-            Volume de Transações
+      {/* 4. Faturas Pendentes & Liquidez Projetada */}
+      <div
+        onClick={onInspectInvoices}
+        className={`bui-card p-4 flex flex-col justify-between ${
+          onInspectInvoices ? 'cursor-pointer hover:border-[var(--bui-border-strong)]' : ''
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bui-inner flex items-center justify-center text-[var(--bui-amber)] shrink-0">
+            <CreditCard className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-medium text-[var(--bui-text-secondary)] truncate">
+            Faturas em Aberto
           </span>
-          <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-            <ReceiptText className="w-5 h-5" />
-          </div>
         </div>
-        <div className="mt-3">
-          <div className="text-2xl font-extrabold text-[#E8EFEA] tracking-tight">
-            {isLoading ? <span className="opacity-40 animate-pulse">...</span> : count}
+        <div className="mt-3.5 flex items-end justify-between gap-2">
+          <div>
+            <div className="text-xl font-bold font-mono-num tracking-tight text-[var(--bui-text-primary)]">
+              {isLoading ? (
+                <span className="opacity-40 animate-pulse">...</span>
+              ) : (
+                formatCurrency(pendingBills, isPrivacyMode)
+              )}
+            </div>
+            <div className="text-[10px] text-[var(--bui-text-muted)] mt-0.5">
+              Líq. Projetado:{' '}
+              <span
+                className={`font-mono-num font-semibold ${
+                  netPositive ? 'text-[var(--bui-lime)]' : 'text-[var(--bui-rose)]'
+                }`}
+              >
+                {formatCurrency(projectedNet, isPrivacyMode)}
+              </span>
+            </div>
           </div>
-          <p className="text-xs text-[#8E9E92] mt-1">
-            Itens encontrados
-          </p>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-amber shrink-0">
+            {projection?.upcoming_bills?.length || 0} abertas
+          </span>
+        </div>
+      </div>
+
+      {/* 5. Disponível por Dia (Spendee Pattern) */}
+      <div
+        onClick={onInspectBudgets}
+        className={`bui-card p-4 flex flex-col justify-between ${
+          onInspectBudgets ? 'cursor-pointer hover:border-[var(--bui-border-strong)]' : ''
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 bui-inner flex items-center justify-center text-[var(--bui-accent-blue)] shrink-0">
+            <CalendarClock className="w-4 h-4" />
+          </div>
+          <span className="text-xs font-medium text-[var(--bui-text-secondary)] truncate">
+            Disponível / Dia
+          </span>
+        </div>
+        <div className="mt-3.5 flex items-end justify-between gap-2">
+          <div>
+            <div className="text-xl font-bold font-mono-num tracking-tight text-[var(--bui-text-primary)]">
+              {isLoading ? (
+                <span className="opacity-40 animate-pulse">...</span>
+              ) : (
+                formatCurrency(dailyMetrics.dailyAvailableCents, isPrivacyMode)
+              )}
+            </div>
+            <div className="text-[10px] text-[var(--bui-text-muted)] mt-0.5">
+              Restam {dailyMetrics.daysRemaining} dias no mês
+            </div>
+          </div>
+          <span
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded-md shrink-0 ${
+              dailyMetrics.status === 'SAFE'
+                ? 'bui-badge-blue'
+                : dailyMetrics.status === 'WARNING'
+                ? 'bui-badge-amber'
+                : 'bui-badge-rose'
+            }`}
+          >
+            {dailyMetrics.usagePercentage}% meta
+          </span>
         </div>
       </div>
     </div>

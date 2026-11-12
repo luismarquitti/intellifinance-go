@@ -21,40 +21,41 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#161D18] border border-[#2C362F] rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
+      <div className="bui-card max-w-md w-full overflow-hidden shadow-2xl p-6 border border-[var(--bui-border-strong)]">
         <div className="flex items-start justify-between">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-            <Trash2 className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-2xl bui-badge-rose flex items-center justify-center">
+            <Trash2 className="w-5 h-5" />
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-xl text-[#8E9E92] hover:text-[#E8EFEA] hover:bg-[#1F2721] transition-colors"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="bui-pill-control p-1.5">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="mt-4">
-          <h3 className="text-base font-bold text-[#E8EFEA]">
+          <h3 className="text-base font-bold text-[var(--bui-text-primary)]">
             {count > 1 ? `Excluir ${count} transações?` : 'Excluir transação?'}
           </h3>
-          <p className="text-xs text-[#8E9E92] mt-1.5 leading-relaxed">
+          <p className="text-xs text-[var(--bui-text-secondary)] mt-1.5 leading-relaxed">
             {count > 1 ? (
-              `As ${count} transações selecionadas serão removidas permanentemente e o saldo das respectivas contas será recalculado automaticamente.`
+              `As ${count} transações selecionadas serão removidas permanentemente e o saldo das respectivas contas será recalculado.`
             ) : (
               <>
-                A transação <span className="font-semibold text-[#E8EFEA]">"{description}"</span> será removida e o saldo da conta será recalculado.
+                A transação{' '}
+                <span className="font-semibold text-[var(--bui-text-primary)]">
+                  "{description}"
+                </span>{' '}
+                será removida e o saldo da conta será recalculado.
               </>
             )}
           </p>
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
+        <div className="mt-6 flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-[#1F2721] text-[#8E9E92] hover:text-[#E8EFEA] text-xs font-semibold transition-colors"
+            className="bui-pill-control px-4 py-2 text-xs font-semibold"
           >
             Cancelar
           </button>
@@ -62,7 +63,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             type="button"
             disabled={isDeleting}
             onClick={onConfirm}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-md transition-all disabled:opacity-40"
+            className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-40"
           >
             {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
           </button>

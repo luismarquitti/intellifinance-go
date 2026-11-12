@@ -111,9 +111,9 @@ WHERE tenant_id = $1
 
 -- name: SummarizeTransactions :one
 SELECT
-    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount ELSE 0 END), 0)::numeric(15,2) AS total_income,
-    COALESCE(SUM(CASE WHEN type = 'EXPENSE' THEN ABS(amount) ELSE 0 END), 0)::numeric(15,2) AS total_expense,
-    COALESCE(SUM(CASE WHEN type = 'INCOME' THEN amount WHEN type = 'EXPENSE' THEN amount ELSE 0 END), 0)::numeric(15,2) AS net_balance,
+    COALESCE(SUM(CASE WHEN type = 'INCOME' AND transfer_peer_transaction_id IS NULL THEN amount ELSE 0 END), 0)::numeric(15,2) AS total_income,
+    COALESCE(SUM(CASE WHEN type = 'EXPENSE' AND transfer_peer_transaction_id IS NULL THEN ABS(amount) ELSE 0 END), 0)::numeric(15,2) AS total_expense,
+    COALESCE(SUM(CASE WHEN type IN ('INCOME', 'EXPENSE') AND transfer_peer_transaction_id IS NULL THEN amount ELSE 0 END), 0)::numeric(15,2) AS net_balance,
     COUNT(*)::bigint AS count
 FROM transactions
 WHERE tenant_id = $1

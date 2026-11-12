@@ -174,23 +174,24 @@ Conforme implementado em `internal/adapters/inbound/http/problem/problem.go`:
 
 ---
 
-## 6. Design Tokens & Identidade Visual
+## 6. Design Tokens & Identidade Visual (Board UI Dual-Theme)
 
-Tokens unificados para suporte completo a temas claro e escuro (`design/tokens.md`):
+Os tokens semânticos seguem o **Board UI Design System** (`design/DESIGN_SYSTEM.md` & `docs/specs/ux_architecture.md`), com **Tema Claro como padrão** (`:root`) e suporte completo a **Tema Escuro** (`html.dark`):
 
-| Token | Light Mode | Dark Mode | Aplicação |
+| Token CSS | Light Mode (Padrão) | Dark Mode (`.dark`) | Aplicação |
 |:---|:---:|:---:|:---|
-| `primary` | `#0D47A1` | `#1976D2` | Ações principais, links, branding |
-| `success` | `#15803D` | `#22C55E` | Entradas financeiras, superávit, aprovação |
-| `error` | `#B91C1C` | `#EF4444` | Saídas financeiras, alertas de validação, débitos |
-| `warning` | `#B45309` | `#F59E0B` | Badges de revisão de IA ("Needs Review") |
-| `background` | `#F8FAFC` | `#0B0F17` | Fundo principal da página |
-| `surface` | `#FFFFFF` | `#151C28` | Fundo de cartões, modais e tabelas |
-| `border` | `#E2E8F0` | `#222D3D` | Bordas e divisores estruturais |
-| `text-primary`| `#0F172A` | `#F8FAFC` | Texto de leitura principal |
-| `text-muted` | `#64748B` | `#94A3B8` | Metadados, rótulos e legendas |
+| `--bui-bg-canvas` | `#FFFFFF` | `#121212` | Fundo principal da aplicação (`<body>`) |
+| `--bui-bg-sidebar` | `#F8F8FA` | `#151518` | Fundo da Sidebar Lateral e Header |
+| `--bui-bg-card` | `#F5F5F6` | `#18181B` | Fundo de cartões, KPIs, gráficos e tabelas |
+| `--bui-bg-inner` | `#FFFFFF` | `#212125` | Superfícies internas aninhadas, inputs e caixas de ícone |
+| `--bui-bg-track` | `#E5E5E7` | `#26262A` | Trilhas em cápsula (`capsule-track`) para barras de progresso/gráficos |
+| `--bui-border` | `#E5E5E5` | `rgba(255,255,255,0.08)` | Bordas hairline (`1px`) e divisores estruturais |
+| `--bui-accent` | `#2563EB` | `#1D63FF` | Item ativo da Sidebar, ações primárias e foco ativo |
+| `--bui-chart-lime` | `#84CC16` | `#9EF01A` | Série principal de gráficos e badges de receita/sucesso |
+| `--bui-text-primary`| `#0A0A0A` | `#FAFAFA` | Texto de leitura principal e valores de KPI |
+| `--bui-text-secondary`| `#6B7280` | `#8E8E93` | Metadados, rótulos secundários e legendas |
 
-Tipografia padrão: `Inter` / `system-ui`. Ícones: `lucide-react`.
+Tipografia padrão: `Inter` / `system-ui` (UI) e `JetBrains Mono` (`tabular-nums` para valores financeiros). Ícones: `lucide-react`.
 
 ---
 

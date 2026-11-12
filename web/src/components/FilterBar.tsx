@@ -19,51 +19,60 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   const hasActiveFilters = Boolean(
     filters.search ||
-    filters.account_id ||
-    filters.category_id ||
-    filters.uncategorized ||
-    filters.type ||
-    filters.from_date ||
-    filters.to_date
+      filters.account_id ||
+      filters.category_id ||
+      filters.uncategorized ||
+      filters.type ||
+      filters.from_date ||
+      filters.to_date
   )
+
+  const accountMap = new Map(accounts.map((a) => [a.id, a]))
+  const categoryMap = new Map(categories.map((c) => [c.id, c]))
 
   const handleSetCurrentMonth = () => {
     const now = new Date()
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-    onFilterChange({ from_date: firstDay, to_date: lastDay })
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+      .toISOString()
+      .split('T')[0]
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      .toISOString()
+      .split('T')[0]
+    onFilterChange({ from_date: firstDay, to_date: lastDay, page: 1 })
   }
 
   return (
-    <div className="bg-[#161D18] border border-[#2C362F] rounded-2xl p-4 shadow-sm">
-      <div className="flex flex-col lg:flex-row gap-3">
+    <div className="bui-card p-4 space-y-3">
+      <div className="flex flex-col lg:flex-row gap-2.5">
         {/* Search input */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#8E9E92] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[var(--bui-text-muted)] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Buscar por descrição, notas..."
+            placeholder="Buscar por estabelecimento, descrição ou notas..."
             value={filters.search || ''}
             onChange={(e) => onFilterChange({ search: e.target.value, page: 1 })}
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#1F2721] border border-[#2C362F] text-sm text-[#E8EFEA] placeholder-[#8E9E92] focus:outline-none focus:border-[#A5D6A7] transition-colors"
+            className="w-full pl-10 pr-9 py-2 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] placeholder-[var(--bui-text-muted)] focus:outline-none focus:border-[var(--bui-accent-blue)] transition"
           />
           {filters.search && (
             <button
               onClick={() => onFilterChange({ search: '', page: 1 })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8E9E92] hover:text-[#E8EFEA]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--bui-text-muted)] hover:text-[var(--bui-text-primary)]"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
         {/* Dropdowns row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 flex-wrap">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {/* Account Filter */}
           <select
             value={filters.account_id || ''}
-            onChange={(e) => onFilterChange({ account_id: e.target.value || undefined, page: 1 })}
-            className="py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs font-medium text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7] transition-colors"
+            onChange={(e) =>
+              onFilterChange({ account_id: e.target.value || undefined, page: 1 })
+            }
+            className="py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-medium text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
           >
             <option value="">Todas as Contas</option>
             {accounts.map((acc) => (
@@ -75,22 +84,34 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
           {/* Category Filter */}
           <select
-            value={filters.uncategorized ? '__uncategorized__' : (filters.category_id || '')}
+            value={
+              filters.uncategorized
+                ? '__uncategorized__'
+                : filters.category_id || ''
+            }
             onChange={(e) => {
               const val = e.target.value
               if (val === '__uncategorized__') {
-                onFilterChange({ uncategorized: true, category_id: undefined, page: 1 })
+                onFilterChange({
+                  uncategorized: true,
+                  category_id: undefined,
+                  page: 1,
+                })
               } else {
-                onFilterChange({ uncategorized: undefined, category_id: val || undefined, page: 1 })
+                onFilterChange({
+                  uncategorized: undefined,
+                  category_id: val || undefined,
+                  page: 1,
+                })
               }
             }}
-            className="py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs font-medium text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7] transition-colors"
+            className="py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-medium text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
           >
             <option value="">Todas as Categorias</option>
             <option value="__uncategorized__">⚠️ Sem Categoria</option>
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
-                {cat.name} ({cat.type === 'INCOME' ? 'Receita' : 'Despesa'})
+                {cat.name}
               </option>
             ))}
           </select>
@@ -98,59 +119,114 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           {/* Type Filter */}
           <select
             value={filters.type || ''}
-            onChange={(e) => onFilterChange({ type: e.target.value || undefined, page: 1 })}
-            className="py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs font-medium text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7] transition-colors"
+            onChange={(e) =>
+              onFilterChange({ type: e.target.value || undefined, page: 1 })
+            }
+            className="py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-medium text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
           >
             <option value="">Todos os Tipos</option>
-            <option value="INCOME">Receitas</option>
-            <option value="EXPENSE">Despesas</option>
+            <option value="INCOME">Receitas (+)</option>
+            <option value="EXPENSE">Despesas (-)</option>
             <option value="TRANSFER">Transferências</option>
           </select>
 
-          {/* Date range trigger / Current Month shortcut */}
+          {/* Current Month Shortcut */}
           <button
             onClick={handleSetCurrentMonth}
-            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#A3B4A7] hover:text-[#A5D6A7] hover:border-[#A5D6A7]/40 transition-colors"
+            className="bui-pill-control py-2 px-3 text-xs font-medium flex items-center justify-center gap-1.5"
             title="Filtrar pelo mês atual"
           >
-            <Calendar className="w-3.5 h-3.5 text-[#A5D6A7]" />
-            <span>Este Mês</span>
+            <Calendar className="w-3.5 h-3.5 text-[var(--bui-accent-blue)]" />
+            <span>Mês Atual</span>
           </button>
         </div>
       </div>
 
-      {/* Date Pickers & Reset Row */}
-      <div className="mt-3 pt-3 border-t border-[#2C362F]/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* Date Range & Active Filter Chips Bar */}
+      <div className="pt-2.5 border-t border-[var(--bui-border)] flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[#8E9E92] flex items-center gap-1 font-medium">
-            <Filter className="w-3.5 h-3.5" /> Período:
+          <span className="text-[var(--bui-text-muted)] flex items-center gap-1 font-medium">
+            <Filter className="w-3 h-3" /> Período:
           </span>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="date"
-              value={filters.from_date || ''}
-              onChange={(e) => onFilterChange({ from_date: e.target.value || undefined, page: 1 })}
-              className="py-1 px-2.5 rounded-lg bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
-            />
-            <span className="text-[#8E9E92]">até</span>
-            <input
-              type="date"
-              value={filters.to_date || ''}
-              onChange={(e) => onFilterChange({ to_date: e.target.value || undefined, page: 1 })}
-              className="py-1 px-2.5 rounded-lg bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
-            />
-          </div>
+          <input
+            type="date"
+            value={filters.from_date || ''}
+            onChange={(e) =>
+              onFilterChange({ from_date: e.target.value || undefined, page: 1 })
+            }
+            className="py-1 px-2 rounded-lg bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-mono-num text-[var(--bui-text-primary)]"
+          />
+          <span className="text-[var(--bui-text-muted)]">até</span>
+          <input
+            type="date"
+            value={filters.to_date || ''}
+            onChange={(e) =>
+              onFilterChange({ to_date: e.target.value || undefined, page: 1 })
+            }
+            className="py-1 px-2 rounded-lg bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-mono-num text-[var(--bui-text-primary)]"
+          />
         </div>
 
-        {hasActiveFilters && (
-          <button
-            onClick={onResetFilters}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 transition-colors ml-auto font-medium"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Limpar Filtros</span>
-          </button>
-        )}
+        {/* Active Filter Chips (1-click removal) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {filters.account_id && (
+            <button
+              onClick={() => onFilterChange({ account_id: undefined, page: 1 })}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bui-badge-blue text-[11px] font-semibold"
+            >
+              <span>Conta: {accountMap.get(filters.account_id)?.name || 'Selecionada'}</span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {filters.category_id && (
+            <button
+              onClick={() => onFilterChange({ category_id: undefined, page: 1 })}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bui-badge-lime text-[11px] font-semibold"
+            >
+              <span>
+                Categoria: {categoryMap.get(filters.category_id)?.name || 'Selecionada'}
+              </span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {filters.uncategorized && (
+            <button
+              onClick={() => onFilterChange({ uncategorized: undefined, page: 1 })}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bui-badge-amber text-[11px] font-semibold"
+            >
+              <span>Sem Categoria</span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {filters.type && (
+            <button
+              onClick={() => onFilterChange({ type: undefined, page: 1 })}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bui-pill-control text-[11px] font-semibold"
+            >
+              <span>Tipo: {filters.type}</span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {filters.search && (
+            <button
+              onClick={() => onFilterChange({ search: undefined, page: 1 })}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bui-pill-control text-[11px] font-semibold"
+            >
+              <span>Busca: "{filters.search}"</span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+
+          {hasActiveFilters && (
+            <button
+              onClick={onResetFilters}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bui-badge-rose text-[11px] font-semibold"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Limpar Tudo</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

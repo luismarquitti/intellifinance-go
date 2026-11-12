@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { X, Save, AlertTriangle } from 'lucide-react'
 import { Account, Category, Transaction, TransactionType } from '../types'
 import { updateTransaction } from '../api'
+import {
+  absDecimalString,
+  isValidPositiveMoneyInput,
+  toSignedDecimalString,
+} from '../utils/money'
 
 interface EditTransactionModalProps {
   isOpen: boolean
@@ -26,6 +31,8 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [date, setDate] = useState('')
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [tagsInput, setTagsInput] = useState('')
+  const [projectInput, setProjectInput] = useState('')
   const [notes, setNotes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -33,14 +40,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   useEffect(() => {
     if (transaction) {
       setDescription(transaction.description)
-      // Display positive amount in input, sign is determined by type
-      const num = parseFloat(transaction.amount)
-      setAmount(Math.abs(num).toFixed(2))
+      setAmount(absDecimalString(transaction.amount))
       setType(transaction.type)
       setDate(transaction.date.split('T')[0])
       setAccountId(transaction.account_id)
       setCategoryId(transaction.category_id || '')
       setNotes(transaction.notes || '')
+      const tags: string[] = Array.isArray(transaction.metadata?.tags)
+        ? transaction.metadata.tags
+        : []
+      setTagsInput(tags.join(', '))
+      setProjectInput(transaction.metadata?.project || '')
       setErrorMessage(null)
     }
   }, [transaction])
@@ -53,14 +63,28 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       setErrorMessage('Descrição é obrigatória.')
       return
     }
-    const parsedAmount = parseFloat(amount.replace(',', '.'))
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (!isValidPositiveMoneyInput(amount)) {
       setErrorMessage('Informe um valor monetário válido maior que zero.')
       return
     }
 
-    // Backend domain rules: Expense is negative, Income is positive
-    const finalAmount = type === 'EXPENSE' ? `-${parsedAmount.toFixed(2)}` : parsedAmount.toFixed(2)
+    const finalAmount = toSignedDecimalString(amount, type === 'EXPENSE')
+    const metadata: Record<string, any> = {
+      ...(transaction.metadata || {}),
+    }
+    if (tagsInput.trim()) {
+      metadata.tags = tagsInput
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    } else {
+      delete metadata.tags
+    }
+    if (projectInput.trim()) {
+      metadata.project = projectInput.trim()
+    } else {
+      delete metadata.project
+    }
 
     try {
       setIsSaving(true)
@@ -73,6 +97,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         account_id: accountId,
         category_id: categoryId ? categoryId : null,
         notes: notes.trim(),
+        metadata,
       })
       onSuccess()
       onClose()
@@ -84,23 +109,22 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#161D18] border border-[#2C362F] rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
+      <div className="bui-card max-w-lg w-full overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
         {/* Header */}
-        <div className="p-6 border-b border-[#2C362F] flex items-center justify-between">
-          <h2 className="text-base font-bold text-[#E8EFEA]">Editar Transação</h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-xl text-[#8E9E92] hover:text-[#E8EFEA] hover:bg-[#1F2721] transition-colors"
-          >
-            <X className="w-5 h-5" />
+        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between">
+          <h2 className="text-base font-bold text-[var(--bui-text-primary)]">
+            Editar Lançamento
+          </h2>
+          <button onClick={onClose} className="bui-pill-control p-1.5">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-400 flex items-center gap-2">
+            <div className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
@@ -108,7 +132,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
               Descrição *
             </label>
             <input
@@ -116,14 +140,14 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               required
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
+              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
             />
           </div>
 
           {/* Amount and Type Grid */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
                 Valor (R$) *
               </label>
               <input
@@ -132,18 +156,18 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] font-mono focus:outline-none focus:border-[#A5D6A7]"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-mono-num text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
                 Tipo *
               </label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as TransactionType)}
-                className="w-full py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
               >
                 <option value="EXPENSE">Despesa</option>
                 <option value="INCOME">Receita</option>
@@ -155,7 +179,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           {/* Date and Account Grid */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
                 Data *
               </label>
               <input
@@ -163,18 +187,18 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-mono-num text-[var(--bui-text-primary)] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
                 Conta *
               </label>
               <select
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
-                className="w-full py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -187,13 +211,13 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
           {/* Category */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
               Categoria
             </label>
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full py-2.5 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
+              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
             >
               <option value="">Sem Categoria</option>
               {categories.map((c) => (
@@ -204,35 +228,64 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             </select>
           </div>
 
+          {/* Tags & Project */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+                Tags (vírgula)
+              </label>
+              <input
+                type="text"
+                value={tagsInput}
+                onChange={(e) => setTagsInput(e.target.value)}
+                placeholder="fixo, viagem"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+                Projeto / Centro
+              </label>
+              <input
+                type="text"
+                value={projectInput}
+                onChange={(e) => setProjectInput(e.target.value)}
+                placeholder="Ex.: Férias 2026"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+              />
+            </div>
+          </div>
+
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#8E9E92] mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
               Observações / Notas
             </label>
             <textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full py-2 px-3 rounded-xl bg-[#1F2721] border border-[#2C362F] text-xs text-[#E8EFEA] focus:outline-none focus:border-[#A5D6A7]"
+              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
               placeholder="Anotações opcionais..."
             />
           </div>
 
           {/* Actions */}
-          <div className="pt-2 flex items-center justify-end gap-3">
+          <div className="pt-2 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-[#1F2721] text-[#8E9E92] hover:text-[#E8EFEA] text-xs font-semibold transition-colors"
+              className="bui-pill-control px-4 py-2 text-xs font-semibold"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#A5D6A7] hover:bg-[#81C784] text-[#0E1410] font-bold text-xs shadow-md transition-all disabled:opacity-40"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] text-white font-bold text-xs shadow-sm transition disabled:opacity-40"
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
             </button>
           </div>

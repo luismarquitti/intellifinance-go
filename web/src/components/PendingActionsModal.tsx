@@ -1,38 +1,101 @@
-import React, { useState } from 'react'
-import { X, Check, CheckCheck, RefreshCw, Sparkles, ArrowRightLeft, Tag } from 'lucide-react'
+import React, { useState, useMemo } from 'react'
+import {
+  X,
+  Check,
+  CheckCheck,
+  RefreshCw,
+  Sparkles,
+  ArrowRightLeft,
+  Tag,
+  Layers,
+  List,
+} from 'lucide-react'
 import { PendingAction } from '../types'
-import { formatCurrency } from './KPICards'
+import { decimalToCents, formatCurrency, isNonNegativeCents } from '../utils/money'
 import {
   approvePendingAction,
   rejectPendingAction,
   batchApprovePendingActions,
+  batchRejectPendingActions,
   triggerAutoCategorizeScan,
   triggerReconcileScan,
 } from '../api'
 
 interface PendingActionsModalProps {
   isOpen: boolean
+  inlineMode?: boolean
+  isPrivacyMode?: boolean
   actions: PendingAction[]
   onClose: () => void
   onRefresh: () => void
 }
 
+interface ActionGroup {
+  key: string
+  merchantLabel: string
+  suggestedCategory: string
+  actionType: PendingAction['action_type']
+  actionIds: string[]
+  totalCents: bigint
+  items: PendingAction[]
+}
+
 export const PendingActionsModal: React.FC<PendingActionsModalProps> = ({
   isOpen,
+  inlineMode = false,
+  isPrivacyMode = false,
   actions,
   onClose,
   onRefresh,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeTab, setActiveTab] = useState<'ALL' | 'CATEGORIES' | 'TRANSFERS'>('ALL')
+  const [viewMode, setViewMode] = useState<'GROUPED' | 'INDIVIDUAL'>('GROUPED')
 
-  if (!isOpen) return null
+  const filteredActions = useMemo(() => {
+    return actions.filter((act) => {
+      if (activeTab === 'CATEGORIES') return act.action_type === 'CATEGORIZE_TRANSACTION'
+      if (activeTab === 'TRANSFERS') return act.action_type === 'RECONCILE_TRANSFER'
+      return true
+    })
+  }, [actions, activeTab])
 
-  const filteredActions = actions.filter((act) => {
-    if (activeTab === 'CATEGORIES') return act.action_type === 'CATEGORIZE_TRANSACTION'
-    if (activeTab === 'TRANSFERS') return act.action_type === 'RECONCILE_TRANSFER'
-    return true
-  })
+  const groupedActions = useMemo<ActionGroup[]>(() => {
+    const map = new Map<string, ActionGroup>()
+    for (const act of filteredActions) {
+      const p = act.payload || {}
+      const merchant = (p.clean_description || p.description || 'Transação').trim()
+      const catName =
+        act.action_type === 'CATEGORIZE_TRANSACTION'
+          ? p.category_name || 'Categoria Sugerida'
+          : p.reconciliation_type === 'BILL_PAYMENT'
+          ? 'Pagamento de Fatura'
+          : 'Transferência Entre Contas'
+      const groupKey = `${act.action_type}::${merchant}::${catName}`
+      const c = decimalToCents(p.amount)
+      const absC = c < 0n ? -c : c
+
+      const existing = map.get(groupKey)
+      if (existing) {
+        existing.actionIds.push(act.id)
+        existing.totalCents += absC
+        existing.items.push(act)
+      } else {
+        map.set(groupKey, {
+          key: groupKey,
+          merchantLabel: merchant,
+          suggestedCategory: catName,
+          actionType: act.action_type,
+          actionIds: [act.id],
+          totalCents: absC,
+          items: [act],
+        })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.actionIds.length - a.actionIds.length)
+  }, [filteredActions])
+
+  if (!isOpen && !inlineMode) return null
 
   const handleApproveSingle = async (id: string) => {
     try {
@@ -53,6 +116,35 @@ export const PendingActionsModal: React.FC<PendingActionsModalProps> = ({
       onRefresh()
     } catch (err) {
       console.error('Failed to reject action:', err)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleApproveGroup = async (actionIds: string[]) => {
+    if (actionIds.length === 0) return
+    try {
+      setIsProcessing(true)
+      await batchApprovePendingActions({ action_ids: actionIds })
+      onRefresh()
+    } catch (err) {
+      console.error('Failed to approve group:', err)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleRejectGroup = async (actionIds: string[]) => {
+    if (actionIds.length === 0) return
+    try {
+      setIsProcessing(true)
+      await batchRejectPendingActions({
+        action_ids: actionIds,
+        reason: 'Grupo rejeitado pelo usuário',
+      })
+      onRefresh()
+    } catch (err) {
+      console.error('Failed to reject group:', err)
     } finally {
       setIsProcessing(false)
     }
@@ -86,193 +178,285 @@ export const PendingActionsModal: React.FC<PendingActionsModalProps> = ({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl bg-[#161D18] border border-[#2C362F] shadow-2xl">
-        {/* Modal Header */}
-        <div className="p-5 border-b border-[#2C362F] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#A5D6A7] to-[#2E7D32] flex items-center justify-center text-[#0E1410]">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[#E8EFEA] flex items-center gap-2">
-                Central de Aprovações (HITL)
-                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-[#1F2721] text-[#A5D6A7] border border-[#2C362F]">
-                  {actions.length} {actions.length === 1 ? 'pendência' : 'pendências'}
-                </span>
-              </h2>
-              <p className="text-xs text-[#8E9E92]">
-                Revise e aprove sugestões de categorização e transferências detectadas pela inteligência.
-              </p>
-            </div>
+  const content = (
+    <div
+      className={`bui-card flex flex-col overflow-hidden ${
+        inlineMode ? 'w-full' : 'w-full max-w-4xl max-h-[85vh] shadow-2xl'
+      }`}
+    >
+      {/* Header */}
+      <div className="p-5 border-b border-[var(--bui-border)] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[var(--bui-accent-blue)] flex items-center justify-center text-white">
+            <Sparkles className="w-4 h-4" />
           </div>
+          <div>
+            <h2 className="text-base font-bold text-[var(--bui-text-primary)] flex items-center gap-2">
+              Central de Aprovações IA (HITL)
+              <span className="px-2 py-0.5 text-xs font-mono-num font-bold rounded-full bui-badge-amber">
+                {actions.length} {actions.length === 1 ? 'pendência' : 'pendências'}
+              </span>
+            </h2>
+            <p className="text-xs text-[var(--bui-text-muted)]">
+              Aprove sugestões agrupadas por estabelecimento em 1 clique ou revise individualmente.
+            </p>
+          </div>
+        </div>
+        {!inlineMode && (
+          <button onClick={onClose} className="bui-pill-control p-1.5">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div
+        className="px-5 py-3 border-b border-[var(--bui-border)] flex flex-wrap items-center justify-between gap-3"
+        style={{ backgroundColor: 'var(--bui-bg-inner)' }}
+      >
+        {/* Filter Tabs */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[#8E9E92] hover:text-[#E8EFEA] hover:bg-[#1F2721] transition"
+            onClick={() => setActiveTab('ALL')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+              activeTab === 'ALL'
+                ? 'bg-[var(--bui-accent-blue)] text-white'
+                : 'bui-pill-control'
+            }`}
           >
-            <X className="w-5 h-5" />
+            Todas ({actions.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('CATEGORIES')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+              activeTab === 'CATEGORIES'
+                ? 'bg-[var(--bui-accent-blue)] text-white'
+                : 'bui-pill-control'
+            }`}
+          >
+            Categorias (
+            {actions.filter((a) => a.action_type === 'CATEGORIZE_TRANSACTION').length})
+          </button>
+          <button
+            onClick={() => setActiveTab('TRANSFERS')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+              activeTab === 'TRANSFERS'
+                ? 'bg-[var(--bui-accent-blue)] text-white'
+                : 'bui-pill-control'
+            }`}
+          >
+            Transferências & Faturas (
+            {actions.filter((a) => a.action_type === 'RECONCILE_TRANSFER').length})
           </button>
         </div>
 
-        {/* Toolbar & Filters */}
-        <div className="px-5 py-3 border-b border-[#2C362F] flex flex-wrap items-center justify-between gap-3 bg-[#131915]">
-          {/* Tabs */}
-          <div className="flex items-center gap-1.5">
+        {/* View Mode & Batch Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center rounded-lg border border-[var(--bui-border)] p-0.5 bg-[var(--bui-bg-card)]">
             <button
-              onClick={() => setActiveTab('ALL')}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'ALL'
-                  ? 'bg-[#A5D6A7] text-[#0E1410] font-semibold'
-                  : 'text-[#8E9E92] hover:text-[#E8EFEA] hover:bg-[#1F2721]'
+              onClick={() => setViewMode('GROUPED')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition ${
+                viewMode === 'GROUPED'
+                  ? 'bg-[var(--bui-bg-inner)] text-[var(--bui-text-primary)] shadow-sm'
+                  : 'text-[var(--bui-text-muted)]'
               }`}
             >
-              Todas ({actions.length})
+              <Layers className="w-3 h-3" /> Agrupado ({groupedActions.length})
             </button>
             <button
-              onClick={() => setActiveTab('CATEGORIES')}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'CATEGORIES'
-                  ? 'bg-[#A5D6A7] text-[#0E1410] font-semibold'
-                  : 'text-[#8E9E92] hover:text-[#E8EFEA] hover:bg-[#1F2721]'
+              onClick={() => setViewMode('INDIVIDUAL')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 transition ${
+                viewMode === 'INDIVIDUAL'
+                  ? 'bg-[var(--bui-bg-inner)] text-[var(--bui-text-primary)] shadow-sm'
+                  : 'text-[var(--bui-text-muted)]'
               }`}
             >
-              Categorias ({actions.filter((a) => a.action_type === 'CATEGORIZE_TRANSACTION').length})
-            </button>
-            <button
-              onClick={() => setActiveTab('TRANSFERS')}
-              className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                activeTab === 'TRANSFERS'
-                  ? 'bg-[#A5D6A7] text-[#0E1410] font-semibold'
-                  : 'text-[#8E9E92] hover:text-[#E8EFEA] hover:bg-[#1F2721]'
-              }`}
-            >
-              Transferências ({actions.filter((a) => a.action_type === 'RECONCILE_TRANSFER').length})
+              <List className="w-3 h-3" /> Individual
             </button>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          <button
+            onClick={handleTriggerScans}
+            disabled={isProcessing}
+            className="bui-pill-control px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+            <span>Escanear</span>
+          </button>
+
+          {actions.length > 0 && (
             <button
-              onClick={handleTriggerScans}
+              onClick={handleApproveAll}
               disabled={isProcessing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#8E9E92] hover:text-[#E8EFEA] bg-[#1F2721] hover:bg-[#28332B] border border-[#2C362F] transition disabled:opacity-50"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] flex items-center gap-1.5 transition disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-              <span>Escanear Agora</span>
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Aprovar Todas ({actions.length})</span>
             </button>
-            {actions.length > 0 && (
-              <button
-                onClick={handleApproveAll}
-                disabled={isProcessing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#0E1410] bg-[#A5D6A7] hover:bg-[#81C784] transition disabled:opacity-50 shadow-sm"
-              >
-                <CheckCheck className="w-3.5 h-3.5" />
-                <span>Aprovar Todas</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Action Items List */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
-          {filteredActions.length === 0 ? (
-            <div className="py-12 text-center">
-              <CheckCheck className="w-12 h-12 text-emerald-400/40 mx-auto mb-3" />
-              <h3 className="text-sm font-semibold text-[#E8EFEA]">Zero pendências no momento</h3>
-              <p className="text-xs text-[#8E9E92] mt-1">
-                Todas as transações e conciliações estão revisadas ou sincronizadas.
-              </p>
-            </div>
-          ) : (
-            filteredActions.map((act) => {
-              const p = act.payload
-              const isCat = act.action_type === 'CATEGORIZE_TRANSACTION'
-              const amountNum = parseFloat(p.amount || '0')
-              const confPercent = p.confidence ? Math.round(p.confidence * 100) : null
-
-              return (
-                <div
-                  key={act.id}
-                  className="p-4 rounded-xl bg-[#111613] border border-[#242D26] hover:border-[#334036] transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      {isCat ? (
-                        <span className="flex items-center gap-1 text-[11px] font-semibold uppercase px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                          <Tag className="w-3 h-3" />
-                          Categorização
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-[11px] font-semibold uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          <ArrowRightLeft className="w-3 h-3" />
-                          {p.reconciliation_type === 'BILL_PAYMENT' ? 'Pagamento de Fatura' : 'Transferência'}
-                        </span>
-                      )}
-
-                      {confPercent && (
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#1F2721] text-[#A5D6A7]">
-                          {confPercent}% confiança
-                        </span>
-                      )}
-
-                      <span className="text-xs text-[#8E9E92]">{p.date || p.outflow_date}</span>
-                    </div>
-
-                    <div className="text-sm font-semibold text-[#E8EFEA]">
-                      {p.clean_description || p.description}
-                    </div>
-
-                    <div className="text-xs text-[#8E9E92] flex items-center gap-2">
-                      {isCat ? (
-                        <>
-                          <span>Sugerido:</span>
-                          <span className="font-semibold text-emerald-400">{p.category_name}</span>
-                          <span className="text-[#556459]">•</span>
-                          <span className="italic">{p.reason}</span>
-                        </>
-                      ) : (
-                        <span>
-                          {p.source_account_name} ➔ {p.destination_account_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Amount & Actions */}
-                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#1F2721]">
-                    <div className={`text-base font-bold ${
-                      amountNum >= 0 ? 'text-emerald-400' : 'text-[#E8EFEA]'
-                    }`}>
-                      {formatCurrency(amountNum)}
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleRejectSingle(act.id)}
-                        disabled={isProcessing}
-                        className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition disabled:opacity-50"
-                        title="Rejeitar"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleApproveSingle(act.id)}
-                        disabled={isProcessing}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#0E1410] bg-[#A5D6A7] hover:bg-[#81C784] transition disabled:opacity-50 shadow-sm"
-                        title="Aprovar"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Aprovar</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })
           )}
         </div>
       </div>
+
+      {/* Body List */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-2.5 max-h-[600px]">
+        {filteredActions.length === 0 ? (
+          <div className="py-12 text-center">
+            <CheckCheck className="w-12 h-12 text-[var(--bui-lime)] mx-auto mb-3 opacity-60" />
+            <h3 className="text-sm font-bold text-[var(--bui-text-primary)]">
+              Zero pendências no momento
+            </h3>
+            <p className="text-xs text-[var(--bui-text-muted)] mt-1">
+              Todas as sugestões da inteligência foram revisadas e conciliadas.
+            </p>
+          </div>
+        ) : viewMode === 'GROUPED' ? (
+          groupedActions.map((grp) => (
+            <div
+              key={grp.key}
+              className="bui-inner p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-[var(--bui-border-strong)] transition"
+            >
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-md text-[11px] font-mono-num font-bold bui-badge-blue">
+                    {grp.actionIds.length}x lançamentos
+                  </span>
+                  <span className="text-xs font-bold text-[var(--bui-text-primary)] truncate">
+                    {grp.merchantLabel}
+                  </span>
+                </div>
+                <div className="text-xs text-[var(--bui-text-secondary)] flex items-center gap-2">
+                  <span>Sugestão IA:</span>
+                  <span className="font-semibold text-[var(--bui-lime)]">
+                    {grp.suggestedCategory}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                <div className="text-right">
+                  <span className="text-[10px] uppercase text-[var(--bui-text-muted)] block">
+                    Volume do Grupo
+                  </span>
+                  <span className="text-sm font-bold font-mono-num text-[var(--bui-text-primary)]">
+                    {formatCurrency(grp.totalCents, isPrivacyMode)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleRejectGroup(grp.actionIds)}
+                    disabled={isProcessing}
+                    className="p-1.5 rounded-lg bui-badge-rose transition disabled:opacity-50"
+                    title="Rejeitar grupo"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleApproveGroup(grp.actionIds)}
+                    disabled={isProcessing}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] flex items-center gap-1 transition disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Aprovar Grupo ({grp.actionIds.length})</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          filteredActions.map((act) => {
+            const p = act.payload || {}
+            const isCat = act.action_type === 'CATEGORIZE_TRANSACTION'
+            const isPositive = isNonNegativeCents(p.amount)
+
+            return (
+              <div
+                key={act.id}
+                className="bui-inner p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    {isCat ? (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase px-2 py-0.5 rounded bui-badge-amber">
+                        <Tag className="w-3 h-3" /> Categorização
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] font-semibold uppercase px-2 py-0.5 rounded bui-badge-blue">
+                        <ArrowRightLeft className="w-3 h-3" />
+                        {p.reconciliation_type === 'BILL_PAYMENT'
+                          ? 'Pagamento de Fatura'
+                          : 'Transferência'}
+                      </span>
+                    )}
+                    <span className="text-xs font-mono-num text-[var(--bui-text-muted)]">
+                      {p.date || p.outflow_date}
+                    </span>
+                  </div>
+
+                  <div className="text-xs font-bold text-[var(--bui-text-primary)]">
+                    {p.clean_description || p.description}
+                  </div>
+
+                  <div className="text-xs text-[var(--bui-text-secondary)]">
+                    {isCat ? (
+                      <>
+                        Sugerido:{' '}
+                        <strong className="text-[var(--bui-lime)]">{p.category_name}</strong> •{' '}
+                        <span className="italic">{p.reason}</span>
+                      </>
+                    ) : (
+                      <span>
+                        {p.source_account_name} ➔ {p.destination_account_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-3">
+                  <div
+                    className={`text-sm font-bold font-mono-num ${
+                      isPositive
+                        ? 'text-[var(--bui-lime)]'
+                        : 'text-[var(--bui-text-primary)]'
+                    }`}
+                  >
+                    {formatCurrency(p.amount, isPrivacyMode)}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleRejectSingle(act.id)}
+                      disabled={isProcessing}
+                      className="p-1.5 rounded-lg bui-badge-rose"
+                      title="Rejeitar"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleApproveSingle(act.id)}
+                      disabled={isProcessing}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] flex items-center gap-1"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Aprovar</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+
+  if (inlineMode) {
+    return content
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
+      {content}
     </div>
   )
 }
