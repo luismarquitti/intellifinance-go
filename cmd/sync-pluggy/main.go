@@ -71,12 +71,20 @@ func main() {
 	}
 
 	// Resolve user
-	userID := cfg.DevUserID
+	var userID uuid.UUID
+	if envUser := os.Getenv("INTELLIFINANCE_USER_ID"); envUser != "" {
+		if parsed, pErr := uuid.Parse(envUser); pErr == nil {
+			userID = parsed
+		}
+	}
 	if userID == uuid.Nil {
 		_ = pool.QueryRow(ctx, "SELECT user_id FROM tenant_members WHERE tenant_id = $1 LIMIT 1", tenantID).Scan(&userID)
 	}
 	if userID == uuid.Nil {
 		_ = pool.QueryRow(ctx, "SELECT id FROM users ORDER BY created_at ASC LIMIT 1").Scan(&userID)
+	}
+	if userID == uuid.Nil {
+		userID = cfg.DevUserID
 	}
 
 	logger.Info("starting Open Finance sync...", "tenant_id", tenantID, "item_id", itemID)

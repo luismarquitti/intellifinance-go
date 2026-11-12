@@ -285,7 +285,7 @@ func (c *Client) FetchAccounts(ctx context.Context, itemID string) ([]ports.Exte
 	return accounts, nil
 }
 
-// FetchTransactions retrieves transactions for an external account in a date interval using /v2/transactions.
+// FetchTransactions retrieves transactions for an external account in a date interval using /v2/transactions with cursor pagination.
 func (c *Client) FetchTransactions(ctx context.Context, accountID string, from, to time.Time) ([]ports.ExternalTransaction, error) {
 	params := url.Values{}
 	params.Set("accountId", accountID)
@@ -297,64 +297,83 @@ func (c *Client) FetchTransactions(ctx context.Context, accountID string, from, 
 	}
 
 	endpoint := "/v2/transactions?" + params.Encode()
-	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
+	var allTxs []ports.ExternalTransaction
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed fetching transactions for account %s (status %d): %s", accountID, resp.StatusCode, string(body))
-	}
-
-	var res struct {
-		Results []struct {
-			ID                 string    `json:"id"`
-			Description        string    `json:"description"`
-			Amount             float64   `json:"amount"`
-			Date               time.Time `json:"date"`
-			Status             string    `json:"status"`
-			Category           string    `json:"category"`
-			PaymentType        string    `json:"paymentType"`
-			BillID             *string   `json:"billId"`
-			CreditCardMetadata *struct {
-				InstallmentNumber int     `json:"installmentNumber"`
-				TotalInstallments int     `json:"totalInstallments"`
-				BillID            *string `json:"billId"`
-			} `json:"creditCardMetadata"`
-		} `json:"results"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, fmt.Errorf("failed decoding transactions response: %w", err)
-	}
-
-	var txs []ports.ExternalTransaction
-	for _, t := range res.Results {
-		extTx := ports.ExternalTransaction{
-			ID:            t.ID,
-			AccountID:     accountID,
-			Date:          t.Date,
-			Amount:        decimal.NewFromFloat(t.Amount).Round(2),
-			Description:   t.Description,
-			CategoryHint:  t.Category,
-			PaymentMethod: t.PaymentType,
-			Status:        t.Status,
+	for endpoint != "" {
+		resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, err
 		}
-		if t.BillID != nil {
-			extTx.BillID = *t.BillID
-		} else if t.CreditCardMetadata != nil && t.CreditCardMetadata.BillID != nil {
-			extTx.BillID = *t.CreditCardMetadata.BillID
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("failed fetching transactions for account %s (status %d): %s", accountID, resp.StatusCode, string(body))
 		}
-		if t.CreditCardMetadata != nil {
-			extTx.InstallmentNumber = t.CreditCardMetadata.InstallmentNumber
-			extTx.TotalInstallments = t.CreditCardMetadata.TotalInstallments
+
+		var res struct {
+			Results []struct {
+				ID                 string    `json:"id"`
+				Description        string    `json:"description"`
+				Amount             float64   `json:"amount"`
+				Date               time.Time `json:"date"`
+				Status             string    `json:"status"`
+				Category           string    `json:"category"`
+				PaymentType        string    `json:"paymentType"`
+				BillID             *string   `json:"billId"`
+				CreditCardMetadata *struct {
+					InstallmentNumber int     `json:"installmentNumber"`
+					TotalInstallments int     `json:"totalInstallments"`
+					BillID            *string `json:"billId"`
+				} `json:"creditCardMetadata"`
+			} `json:"results"`
+			Next *string `json:"next"`
 		}
-		txs = append(txs, extTx)
+
+		decodeErr := json.NewDecoder(resp.Body).Decode(&res)
+		_ = resp.Body.Close()
+		if decodeErr != nil {
+			return nil, fmt.Errorf("failed decoding transactions response: %w", decodeErr)
+		}
+
+		for _, t := range res.Results {
+			extTx := ports.ExternalTransaction{
+				ID:            t.ID,
+				AccountID:     accountID,
+				Date:          t.Date,
+				Amount:        decimal.NewFromFloat(t.Amount).Round(2),
+				Description:   t.Description,
+				CategoryHint:  t.Category,
+				PaymentMethod: t.PaymentType,
+				Status:        t.Status,
+			}
+			if t.BillID != nil {
+				extTx.BillID = *t.BillID
+			} else if t.CreditCardMetadata != nil && t.CreditCardMetadata.BillID != nil {
+				extTx.BillID = *t.CreditCardMetadata.BillID
+			}
+			if t.CreditCardMetadata != nil {
+				extTx.InstallmentNumber = t.CreditCardMetadata.InstallmentNumber
+				extTx.TotalInstallments = t.CreditCardMetadata.TotalInstallments
+			}
+			allTxs = append(allTxs, extTx)
+		}
+
+		if res.Next != nil && *res.Next != "" {
+			nextStr := *res.Next
+			if strings.HasPrefix(nextStr, "?") {
+				endpoint = "/v2/transactions" + nextStr
+			} else if strings.HasPrefix(nextStr, "/") {
+				endpoint = nextStr
+			} else {
+				endpoint = "/v2/transactions?" + nextStr
+			}
+		} else {
+			endpoint = ""
+		}
 	}
 
-	return txs, nil
+	return allTxs, nil
 }
 
 // FetchBills retrieves credit card invoices/bills for an external account.
