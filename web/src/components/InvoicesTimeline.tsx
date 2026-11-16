@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   CreditCard,
   Calendar,
@@ -68,6 +68,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
   onInlineCategoryChange,
   onRefresh,
 }) => {
+  const payAccountSelectId = useId()
   const creditCards = useMemo(
     () => accounts.filter((a) => a.type === 'CREDIT_CARD' && a.is_active),
     [accounts]
@@ -266,25 +267,25 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
       case 'PAID':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-md bui-badge-lime">
-            <CheckCircle2 className="w-3 h-3" /> Paga
+            <CheckCircle2 className="w-3 h-3" aria-hidden="true" /> Paga
           </span>
         )
       case 'OPEN':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-md bui-badge-blue">
-            <Clock className="w-3 h-3" /> Em Aberto
+            <Clock className="w-3 h-3" aria-hidden="true" /> Em Aberto
           </span>
         )
       case 'CLOSED':
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-md bui-badge-amber">
-            <AlertCircle className="w-3 h-3" /> Fechada (Em Aberto)
+            <AlertCircle className="w-3 h-3" aria-hidden="true" /> Fechada (Em Aberto)
           </span>
         )
       default:
         return (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-md bui-badge-rose">
-            <AlertCircle className="w-3 h-3" /> Vencida
+            <AlertCircle className="w-3 h-3" aria-hidden="true" /> Vencida
           </span>
         )
     }
@@ -294,14 +295,14 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
     <div className="space-y-5">
       {/* Credit Card Selector Strip */}
       {creditCards.length > 0 && (
-        <div className="bui-card p-4">
+        <section aria-label="Cartões de Crédito" className="bui-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <div>
-              <h3 className="text-sm font-bold text-[var(--bui-text-primary)]">
+              <h2 className="text-sm font-bold text-[var(--bui-text-primary)]">
                 Cartões de Crédito ({creditCards.length})
-              </h3>
+              </h2>
               <p className="text-xs text-[var(--bui-text-muted)]">
-                Selecione um cartão e navegue mês a mês pelas faturas, como no Organizze.
+                Selecione um cartão e navegue mês a mês pelas faturas sincronizadas.
               </p>
             </div>
           </div>
@@ -315,6 +316,8 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
               return (
                 <button
                   key={card.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedCardId(card.id)}
                   className={`bui-inner p-3.5 text-left flex items-center justify-between gap-3 transition ${
                     isSelected
@@ -327,7 +330,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
                       style={{ backgroundColor: card.color_hex || '#18181B' }}
                     >
-                      <CreditCard className="w-5 h-5" />
+                      <CreditCard className="w-5 h-5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-[var(--bui-text-primary)] truncate">
@@ -348,7 +351,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                     <div className="text-xs font-bold font-mono-num text-[var(--bui-amber)]">
                       {formatCurrency(card.balance, isPrivacyMode)}
                     </div>
-                    <div className="text-[10px] text-[var(--bui-text-muted)]">
+                    <div className="text-[11px] text-[var(--bui-text-muted)]">
                       Em aberto
                     </div>
                   </div>
@@ -356,14 +359,14 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
               )
             })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Organizze-Style Monthly Invoice Inspector */}
-      <div className="bui-card p-5 space-y-5">
+      <section aria-label="Detalhamento da Fatura Mensal" className="bui-card p-5 space-y-5">
         {cardInvoices.length === 0 ? (
           <div className="bui-inner p-8 text-center space-y-2">
-            <Receipt className="w-8 h-8 text-[var(--bui-text-muted)] mx-auto" />
+            <Receipt className="w-8 h-8 text-[var(--bui-text-muted)] mx-auto" aria-hidden="true" />
             <div className="text-sm font-semibold text-[var(--bui-text-primary)]">
               Nenhuma fatura sincronizada ainda
             </div>
@@ -373,19 +376,21 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
           </div>
         ) : (
           <>
-            {/* Prominent Month Selector (< Mês Anterior | Novembro 2026 | Próximo Mês >) */}
+            {/* Prominent Month Selector */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[var(--bui-border)]">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
+                  type="button"
                   onClick={handlePrevInvoice}
                   disabled={selectedIndex <= 0}
-                  className="bui-pill-control p-2 disabled:opacity-35 disabled:cursor-not-allowed"
+                  aria-label="Fatura do mês anterior"
+                  className="bui-pill-control p-2 disabled:opacity-35 disabled:cursor-not-allowed shrink-0"
                   title="Fatura do mês anterior"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                 </button>
-                <div className="bui-inner px-4 py-1.5 min-w-[200px] text-center">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--bui-text-muted)] block font-semibold">
+                <div className="bui-inner px-4 py-1.5 min-w-[140px] sm:min-w-[200px] flex-1 sm:flex-initial text-center">
+                  <span className="text-[11px] uppercase tracking-wider text-[var(--bui-text-muted)] block font-semibold">
                     Fatura Mensal
                   </span>
                   <span className="text-sm font-bold text-[var(--bui-text-primary)]">
@@ -393,12 +398,14 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={handleNextInvoice}
                   disabled={selectedIndex < 0 || selectedIndex >= cardInvoices.length - 1}
-                  className="bui-pill-control p-2 disabled:opacity-35 disabled:cursor-not-allowed"
+                  aria-label="Fatura do próximo mês"
+                  className="bui-pill-control p-2 disabled:opacity-35 disabled:cursor-not-allowed shrink-0"
                   title="Fatura do próximo mês"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
 
@@ -420,6 +427,8 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                 return (
                   <button
                     key={inv.id}
+                    type="button"
+                    aria-pressed={isSelected}
                     onClick={() => selectInvoiceAndNotify(inv)}
                     className={`min-w-[122px] text-left px-3 py-2.5 rounded-xl border transition-all shrink-0 flex flex-col justify-between gap-1 ${
                       isSelected
@@ -427,7 +436,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                         : 'bui-inner hover:border-[var(--bui-border-strong)]'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 w-full">
                       <span className="text-xs font-bold text-[var(--bui-text-primary)]">
                         {formatMonthShort(inv.due_date)}
                       </span>
@@ -436,6 +445,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                           isPaid ? 'bg-[var(--bui-lime)]' : 'bg-[var(--bui-amber)]'
                         }`}
                         title={isPaid ? 'Fatura Paga' : 'Em Aberto'}
+                        aria-hidden="true"
                       />
                     </div>
                     <div className="text-xs font-bold font-mono-num text-[var(--bui-text-secondary)]">
@@ -453,20 +463,20 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                 <div className="p-4 border-b border-[var(--bui-border)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <h4 className="text-sm font-bold text-[var(--bui-text-primary)]">
+                      <h3 className="text-sm font-bold text-[var(--bui-text-primary)]">
                         Fatura de {formatMonthFull(selectedInvoice.due_date)}
-                      </h4>
+                      </h3>
                       {renderStatusBadge(selectedInvoice.status)}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--bui-text-muted)]">
                       {selectedInvoice.closing_date && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5" />
+                          <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
                           Fechamento: <strong className="text-[var(--bui-text-secondary)]">{formatDate(selectedInvoice.closing_date)}</strong>
                         </span>
                       )}
                       <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
+                        <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
                         Vencimento: <strong className="text-[var(--bui-text-secondary)]">{formatDate(selectedInvoice.due_date)}</strong>
                       </span>
                       <span>
@@ -480,7 +490,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
 
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="sm:text-right">
-                      <span className="text-[10px] uppercase tracking-wider text-[var(--bui-text-muted)] block">
+                      <span className="text-[11px] uppercase tracking-wider text-[var(--bui-text-muted)] block">
                         Valor Total da Fatura ({invoiceTransactions.length} lanç.)
                       </span>
                       <span className="text-xl font-bold font-mono-num text-[var(--bui-text-primary)]">
@@ -495,7 +505,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                   {selectedInvoice.status === 'PAID' ? (
                     <>
                       <div className="flex items-center gap-2 text-xs text-[var(--bui-text-secondary)]">
-                        <CheckCircle2 className="w-4 h-4 text-[var(--bui-lime)] shrink-0" />
+                        <CheckCircle2 className="w-4 h-4 text-[var(--bui-lime)] shrink-0" aria-hidden="true" />
                         <span>
                           Fatura paga via{' '}
                           <strong className="text-[var(--bui-text-primary)]">
@@ -513,23 +523,25 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                         </span>
                       </div>
                       <button
+                        type="button"
                         onClick={handleMarkAsOpen}
                         disabled={isMutatingStatus}
                         className="bui-pill-control px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 hover:border-[var(--bui-amber)]"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
+                        <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{isMutatingStatus ? 'Processando...' : 'Marcar em Aberto'}</span>
                       </button>
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2 text-xs text-[var(--bui-text-secondary)]">
-                        <Landmark className="w-4 h-4 text-[var(--bui-accent-blue)] shrink-0" />
-                        <span>Conta de pagamento:</span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--bui-text-secondary)]">
+                        <Landmark className="w-4 h-4 text-[var(--bui-accent-blue)] shrink-0" aria-hidden="true" />
+                        <label htmlFor={payAccountSelectId}>Conta de pagamento:</label>
                         <select
+                          id={payAccountSelectId}
                           value={selectedPayAccountId}
                           onChange={(e) => setSelectedPayAccountId(e.target.value)}
-                          className="text-xs py-1 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-[var(--bui-text-primary)]"
+                          className="text-xs py-1.5 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-[var(--bui-text-primary)]"
                         >
                           {liquidAccounts.map((acc) => (
                             <option key={acc.id} value={acc.id}>
@@ -539,11 +551,12 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                         </select>
                       </div>
                       <button
+                        type="button"
                         onClick={handleMarkAsPaid}
                         disabled={isMutatingStatus || liquidAccounts.length === 0}
                         className="px-3.5 py-1.5 rounded-lg bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>
                           {isMutatingStatus ? 'Registrando...' : 'Marcar Fatura como Paga'}
                         </span>
@@ -553,12 +566,15 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                 </div>
 
                 {statusError && (
-                  <div className="px-4 py-2 text-xs text-[var(--bui-rose)] bg-[var(--bui-rose)]/10 border-b border-[var(--bui-border)]">
+                  <div
+                    role="alert"
+                    className="px-4 py-2 text-xs text-[var(--bui-rose)] bg-[var(--bui-rose)]/10 border-b border-[var(--bui-border)]"
+                  >
                     {statusError}
                   </div>
                 )}
 
-                {/* Invoice Transactions Table */}
+                {/* Invoice Transactions List (Mobile-friendly 2-line wrap on narrow screens) */}
                 <div className="max-h-[460px] overflow-y-auto divide-y divide-[var(--bui-border)]">
                   {isLoadingDetails ? (
                     <div className="p-8 text-center text-xs text-[var(--bui-text-muted)]">
@@ -578,33 +594,34 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                       return (
                         <div
                           key={tx.id}
-                          className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-[var(--bui-bg-hover)]/50 transition text-xs"
+                          className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 hover:bg-[var(--bui-bg-hover)]/50 transition text-xs"
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="font-mono-num text-[11px] text-[var(--bui-text-muted)] shrink-0 w-20">
+                          <div className="flex items-start sm:items-center gap-3 min-w-0">
+                            <span className="font-mono-num text-[11px] text-[var(--bui-text-muted)] shrink-0 sm:w-20 pt-0.5 sm:pt-0">
                               {formatDate(tx.date)}
                             </span>
-                            <div className="min-w-0 flex items-center gap-2">
-                              <span className="font-medium text-[var(--bui-text-primary)] truncate">
+                            <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-[var(--bui-text-primary)] break-words">
                                 {tx.description}
                               </span>
                               {instNo > 0 && instTot > 0 && (
-                                <span className="text-[10px] font-mono-num px-1.5 py-0.5 rounded bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-[var(--bui-text-muted)] shrink-0">
+                                <span className="text-[11px] font-mono-num px-1.5 py-0.5 rounded bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-[var(--bui-text-muted)] shrink-0">
                                   {instNo}/{instTot}
                                 </span>
                               )}
                               {isCredit && (
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bui-badge-lime shrink-0">
+                                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bui-badge-lime shrink-0">
                                   Estorno / Crédito
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3 shrink-0">
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pl-0 sm:pl-2">
                             {editingCatTxId === tx.id ? (
                               <select
                                 autoFocus
+                                aria-label={`Categoria para ${tx.description}`}
                                 defaultValue={tx.category_id || ''}
                                 onChange={(e) => {
                                   onInlineCategoryChange(
@@ -625,24 +642,26 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                               </select>
                             ) : (
                               <button
+                                type="button"
                                 onClick={() => setEditingCatTxId(tx.id)}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${
+                                aria-label={`Classificar categoria de ${tx.description}`}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium ${
                                   cat ? 'bui-pill-control' : 'bui-badge-amber'
                                 }`}
                               >
-                                <Tag className="w-2.5 h-2.5" />
+                                <Tag className="w-3 h-3" aria-hidden="true" />
                                 <span>{cat ? cat.name : 'Classificar'}</span>
                               </button>
                             )}
 
                             <span
-                              className={`font-mono-num font-semibold w-28 text-right ${
+                              className={`font-mono-num font-semibold sm:w-28 text-right ${
                                 isCredit
                                   ? 'text-[var(--bui-lime)]'
                                   : 'text-[var(--bui-text-primary)]'
                               }`}
                             >
-                              {formatCurrency(tx.amount, isPrivacyMode)}
+                              {formatCurrency(tx.amount, isPrivacyMode, { showPlusSign: isCredit })}
                             </span>
                           </div>
                         </div>
@@ -652,7 +671,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
                 </div>
 
                 {/* Footer Summary */}
-                <div className="px-4 py-3 border-t border-[var(--bui-border)] bg-[var(--bui-bg-card)]/40 flex items-center justify-between text-xs">
+                <div className="px-4 py-3 border-t border-[var(--bui-border)] bg-[var(--bui-bg-card)]/40 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="text-[var(--bui-text-muted)]">
                     Total de {invoiceTransactions.length} lançamentos na fatura
                   </span>
@@ -669,7 +688,7 @@ export const InvoicesTimeline: React.FC<InvoicesTimelineProps> = ({
             )}
           </>
         )}
-      </div>
+      </section>
     </div>
   )
 }

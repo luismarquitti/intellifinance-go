@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
 import { KPICards } from './components/KPICards'
@@ -16,6 +15,7 @@ import { CSVImportModal } from './components/CSVImportModal'
 import { EditTransactionModal } from './components/EditTransactionModal'
 import { DeleteConfirmModal } from './components/DeleteConfirmModal'
 import { PendingActionsModal } from './components/PendingActionsModal'
+import { ToastBanner, ToastMessage } from './components/ToastBanner'
 import {
   Account,
   AppSection,
@@ -59,13 +59,21 @@ const MONTH_NAMES = [
   'Dez',
 ]
 
+const SECTION_TITLES: Record<AppSection, string> = {
+  overview: 'Visão Geral',
+  accounts: 'Cartões & Faturas',
+  transactions: 'Transações',
+  budgets: 'Orçamentos & Fixas',
+  hitl: 'Revisão IA (HITL)',
+}
+
 export const App: React.FC = () => {
   // Theme state: Light Mode default (false), Dark Mode optional (true)
   const [isDark, setIsDark] = useState(false)
   const [isPrivacyMode, setIsPrivacyMode] = useState(false)
   const [activeSection, setActiveSection] = useState<AppSection>('overview')
 
-  // Global Month Selector state (defaults to All Periods so all Open Finance data is immediately visible, or user can step month-by-month)
+  // Global Month Selector state
   const [monthCursor, setMonthCursor] = useState<Date>(() => new Date())
   const [isAllPeriods, setIsAllPeriods] = useState(true)
   const [monthlyBudgetLimit, setMonthlyBudgetLimit] = useState('12000.00')
@@ -76,6 +84,7 @@ export const App: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [analyticsTransactions, setAnalyticsTransactions] = useState<Transaction[]>([])
   const [summary, setSummary] = useState<TransactionSummary | null>(null)
   const [projection, setProjection] = useState<CashflowProjection | null>(null)
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([])
@@ -95,6 +104,7 @@ export const App: React.FC = () => {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [toast, setToast] = useState<ToastMessage | null>(null)
 
   // Modals state
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false)
@@ -105,10 +115,19 @@ export const App: React.FC = () => {
   const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
 
+  const notify = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ id: Date.now(), message, type })
+  }, [])
+
   // Synchronize HTML root `.dark` class with React state (Light Mode is default)
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
   }, [isDark])
+
+  // Update document title on section transitions for assistive technologies & browser tabs
+  useEffect(() => {
+    document.title = `${SECTION_TITLES[activeSection]} | IntelliFinance`
+  }, [activeSection])
 
   const selectedMonthLabel = useMemo(() => {
     return `${MONTH_NAMES[monthCursor.getMonth()]} ${monthCursor.getFullYear()}`
@@ -142,6 +161,12 @@ export const App: React.FC = () => {
     applyMonthBoundsToFilters(next)
   }
 
+  const handleSelectCurrentMonth = () => {
+    const now = new Date()
+    setMonthCursor(now)
+    applyMonthBoundsToFilters(now)
+  }
+
   const handleToggleAllPeriods = () => {
     if (isAllPeriods) {
       applyMonthBoundsToFilters(monthCursor)
@@ -173,16 +198,16 @@ export const App: React.FC = () => {
       setProjection(proj)
       setInvoices(invs)
       setPendingActions(acts)
-    } catch (err) {
-      console.error('Failed to load initial data:', err)
+    } catch (err: any) {
+      notify(err?.message || 'Erro ao carregar dados iniciais.', 'error')
     }
-  }, [])
+  }, [notify])
 
   useEffect(() => {
     loadStaticData()
   }, [loadStaticData])
 
-  // Load dynamic transactions & KPI summary based on filters
+  // Load dynamic transactions, analytical sample (up to 200 items), & KPI summary based on filters
   const loadTransactionsData = useCallback(async () => {
     try {
       setIsLoading(true)
@@ -193,12 +218,23 @@ export const App: React.FC = () => {
       setTransactions(txList.items)
       setPagination(txList.pagination)
       setSummary(summ)
-    } catch (err) {
-      console.error('Failed to load transactions:', err)
+
+      if (txList.pagination.total <= txList.items.length || (filters.limit ?? 50) >= 200) {
+        setAnalyticsTransactions(txList.items)
+      } else {
+        const sample = await fetchTransactions({
+          ...filters,
+          page: 1,
+          limit: 200,
+        }).catch(() => txList)
+        setAnalyticsTransactions(sample.items)
+      }
+    } catch (err: any) {
+      notify(err?.message || 'Falha ao carregar transações do período.', 'error')
     } finally {
       setIsLoading(false)
     }
-  }, [filters])
+  }, [filters, notify])
 
   useEffect(() => {
     loadTransactionsData()
@@ -212,14 +248,14 @@ export const App: React.FC = () => {
   }, [loadStaticData, loadTransactionsData])
 
   // Filter actions
-  const handleFilterChange = (newFilters: Partial<TransactionFilters>) => {
+  const handleFilterChange = useCallback((newFilters: Partial<TransactionFilters>) => {
     if (newFilters.from_date !== undefined || newFilters.to_date !== undefined) {
       setIsAllPeriods(!newFilters.from_date && !newFilters.to_date)
     }
     setFilters((prev) => ({ ...prev, ...newFilters }))
-  }
+  }, [])
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     setIsAllPeriods(true)
     setFilters({
       page: 1,
@@ -227,7 +263,7 @@ export const App: React.FC = () => {
       sort_by: 'date',
       sort_order: 'desc',
     })
-  }
+  }, [])
 
   // Sorting
   const handleSort = (column: string) => {
@@ -264,9 +300,10 @@ export const App: React.FC = () => {
   ) => {
     try {
       await updateTransaction(txId, { category_id: categoryId })
+      notify('Categoria atualizada.', 'success')
       handleRefresh()
-    } catch (err) {
-      console.error('Failed to update category inline:', err)
+    } catch (err: any) {
+      notify(err?.message || 'Falha ao atualizar categoria.', 'error')
     }
   }
 
@@ -275,21 +312,24 @@ export const App: React.FC = () => {
     if (selectedIds.length === 0) return
     try {
       await batchUpdateCategory(selectedIds, categoryId)
+      notify(`Categoria aplicada a ${selectedIds.length} lançamento(s).`, 'success')
       handleRefresh()
-    } catch (err) {
-      console.error('Failed to update category in batch:', err)
+    } catch (err: any) {
+      notify(err?.message || 'Falha ao atualizar categorias em lote.', 'error')
     }
   }
 
   const handleConfirmBatchDelete = async () => {
     if (selectedIds.length === 0) return
+    const count = selectedIds.length
     try {
       setIsActionLoading(true)
       await batchDeleteTransactions(selectedIds)
       setIsBatchDeleteModalOpen(false)
+      notify(`${count} lançamento(s) excluído(s).`, 'success')
       handleRefresh()
-    } catch (err) {
-      console.error('Failed to batch delete transactions:', err)
+    } catch (err: any) {
+      notify(err?.message || 'Falha ao excluir transações em lote.', 'error')
     } finally {
       setIsActionLoading(false)
     }
@@ -301,9 +341,10 @@ export const App: React.FC = () => {
       setIsActionLoading(true)
       await deleteTransaction(deletingTx.id)
       setDeletingTx(null)
+      notify('Lançamento excluído.', 'success')
       handleRefresh()
-    } catch (err) {
-      console.error('Failed to delete transaction:', err)
+    } catch (err: any) {
+      notify(err?.message || 'Falha ao excluir lançamento.', 'error')
     } finally {
       setIsActionLoading(false)
     }
@@ -321,20 +362,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row font-sans bg-[var(--bui-bg-canvas)] text-[var(--bui-text-primary)]">
-      {/* Left Board UI Sidebar */}
+      {/* Toast Notifications */}
+      <ToastBanner toast={toast} onClose={() => setToast(null)} />
+
+      {/* Left Board UI Sidebar (Desktop) & Fixed Bottom Nav (Mobile) */}
       <Sidebar
         activeSection={activeSection}
         onSelectSection={setActiveSection}
         session={session}
-        isDark={isDark}
-        onToggleTheme={() => setIsDark((prev) => !prev)}
-        isPrivacyMode={isPrivacyMode}
-        onTogglePrivacy={() => setIsPrivacyMode((prev) => !prev)}
-        selectedMonthLabel={selectedMonthLabel}
-        isAllPeriods={isAllPeriods}
-        onPrevMonth={handlePrevMonth}
-        onNextMonth={handleNextMonth}
-        onToggleAllPeriods={handleToggleAllPeriods}
         invoicesCount={invoices.length}
         transactionsTotal={pagination.total}
         pendingCount={pendingActions.length}
@@ -342,7 +377,7 @@ export const App: React.FC = () => {
 
       {/* Right Main Workspace */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
+        {/* Topbar with Unified Period Selector, Theme & Privacy */}
         <Header
           session={session}
           activeSection={activeSection}
@@ -351,70 +386,21 @@ export const App: React.FC = () => {
           onToggleTheme={() => setIsDark((prev) => !prev)}
           isPrivacyMode={isPrivacyMode}
           onTogglePrivacy={() => setIsPrivacyMode((prev) => !prev)}
+          selectedMonthLabel={selectedMonthLabel}
+          isAllPeriods={isAllPeriods}
+          isCurrentMonth={Boolean(summary?.is_current_month)}
+          onPrevMonth={handlePrevMonth}
+          onNextMonth={handleNextMonth}
+          onSelectCurrentMonth={handleSelectCurrentMonth}
+          onToggleAllPeriods={handleToggleAllPeriods}
           onOpenQuickEntryModal={() => setIsQuickEntryOpen(true)}
           onOpenImportModal={() => setIsImportModalOpen(true)}
           onOpenPendingModal={() => setIsPendingModalOpen(true)}
         />
 
-        {/* Section Content */}
-        <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
-          {/* Month / Period Filter Bar for Overview & Transactions */}
-          {(activeSection === 'overview' || activeSection === 'transactions') && (
-            <div className="bui-card px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrevMonth}
-                  className="bui-pill-control p-1.5"
-                  title="Mês anterior"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div className="px-2 min-w-[130px] text-center">
-                  <span className="text-[10px] uppercase tracking-wider text-[var(--bui-text-muted)] block font-semibold">
-                    Competência
-                  </span>
-                  <span className="text-xs font-bold text-[var(--bui-text-primary)]">
-                    {isAllPeriods ? 'Todo o Histórico' : selectedMonthLabel}
-                  </span>
-                </div>
-                <button
-                  onClick={handleNextMonth}
-                  className="bui-pill-control p-1.5"
-                  title="Próximo mês"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const now = new Date()
-                    setMonthCursor(now)
-                    applyMonthBoundsToFilters(now)
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                    !isAllPeriods && summary?.is_current_month
-                      ? 'bg-[var(--bui-accent-blue)] text-white'
-                      : 'bui-pill-control'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5" />
-                  <span>Mês Atual</span>
-                </button>
-                <button
-                  onClick={handleToggleAllPeriods}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    isAllPeriods ? 'bui-badge-blue' : 'bui-pill-control'
-                  }`}
-                >
-                  {isAllPeriods ? 'Mostrando Todo Histórico' : 'Todo o Histórico'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Top KPI Row is visible on Overview, Accounts, and Transactions */}
+        {/* Section Content (extra bottom padding on mobile for fixed Bottom Nav) */}
+        <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 lg:pb-8 space-y-5">
+          {/* Top KPI Row (omits redundant 5th card on Overview because CashflowCard is right below) */}
           {activeSection !== 'hitl' && (
             <KPICards
               summary={summary}
@@ -424,12 +410,13 @@ export const App: React.FC = () => {
               isAllPeriods={isAllPeriods}
               isPrivacyMode={isPrivacyMode}
               isLoading={isLoading}
+              showInvoicesCard={activeSection !== 'overview'}
               onInspectInvoices={() => setActiveSection('accounts')}
               onInspectBudgets={() => setActiveSection('budgets')}
             />
           )}
 
-          {/* SECTION 1: OVERVIEW (VISÃO GERAL) */}
+          {/* SECTION 1: OVERVIEW (RESUMOS & CARDS SOMENTE — SEM TABELA DE TRANSAÇÕES) */}
           {activeSection === 'overview' && (
             <>
               <CashflowCard
@@ -440,11 +427,12 @@ export const App: React.FC = () => {
               />
 
               <CategoryBreakdownPanel
-                transactions={transactions}
+                transactions={analyticsTransactions}
                 categories={categories}
                 selectedCategoryId={filters.category_id}
                 uncategorizedFilter={filters.uncategorized}
                 isPrivacyMode={isPrivacyMode}
+                totalPeriodCount={pagination.total}
                 onSelectCategory={(categoryId, uncategorized) =>
                   handleFilterChange({
                     category_id: categoryId,
@@ -452,6 +440,7 @@ export const App: React.FC = () => {
                     page: 1,
                   })
                 }
+                onNavigateToTransactions={() => setActiveSection('transactions')}
               />
 
               <AccountsRail
@@ -463,41 +452,16 @@ export const App: React.FC = () => {
                   handleFilterChange({ account_id: accountId, page: 1 })
                 }
                 onOpenInvoicesHub={() => setActiveSection('accounts')}
-                onAccountCreated={handleRefresh}
-              />
-
-              <FilterBar
-                accounts={accounts}
-                categories={categories}
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onResetFilters={handleResetFilters}
-              />
-
-              <TransactionTable
-                transactions={transactions}
-                accounts={accounts}
-                categories={categories}
-                pagination={pagination}
-                selectedIds={selectedIds}
-                sortBy={filters.sort_by || 'date'}
-                sortOrder={filters.sort_order || 'desc'}
-                isPrivacyMode={isPrivacyMode}
-                hasActiveFilters={hasActiveFilters}
-                onResetFilters={handleResetFilters}
-                onToggleSelect={handleToggleSelect}
-                onToggleSelectAll={handleToggleSelectAll}
-                onSort={handleSort}
-                onPageChange={(page) => handleFilterChange({ page })}
-                onEdit={(tx) => setEditingTx(tx)}
-                onDelete={(tx) => setDeletingTx(tx)}
-                onInlineCategoryChange={handleInlineCategoryChange}
-                isLoading={isLoading}
+                onNavigateToTransactions={() => setActiveSection('transactions')}
+                onAccountCreated={() => {
+                  notify('Conta cadastrada com sucesso.', 'success')
+                  handleRefresh()
+                }}
               />
             </>
           )}
 
-          {/* SECTION 2: ACCOUNTS & INVOICES HUB */}
+          {/* SECTION 2: ACCOUNTS & INVOICES HUB (SEM DUPLICAR LISTA DE CARTÕES) */}
           {activeSection === 'accounts' && (
             <>
               <AccountsRail
@@ -505,10 +469,15 @@ export const App: React.FC = () => {
                 invoices={invoices}
                 selectedAccountId={filters.account_id}
                 isPrivacyMode={isPrivacyMode}
+                hideCreditCards={true}
                 onSelectAccount={(accountId) =>
                   handleFilterChange({ account_id: accountId, page: 1 })
                 }
-                onAccountCreated={handleRefresh}
+                onNavigateToTransactions={() => setActiveSection('transactions')}
+                onAccountCreated={() => {
+                  notify('Conta cadastrada com sucesso.', 'success')
+                  handleRefresh()
+                }}
               />
 
               <InvoicesTimeline
@@ -561,11 +530,12 @@ export const App: React.FC = () => {
           {activeSection === 'budgets' && (
             <BudgetOverviewPanel
               summary={summary}
-              transactions={transactions}
+              transactions={analyticsTransactions}
               categories={categories}
               monthlyBudgetLimit={monthlyBudgetLimit}
               onChangeMonthlyBudgetLimit={setMonthlyBudgetLimit}
               isPrivacyMode={isPrivacyMode}
+              totalPeriodCount={pagination.total}
             />
           )}
 
@@ -578,27 +548,31 @@ export const App: React.FC = () => {
               actions={pendingActions}
               onClose={() => setActiveSection('overview')}
               onRefresh={handleRefresh}
+              onNotify={notify}
             />
           )}
         </main>
       </div>
 
-      {/* Floating Bulk Actions Bar */}
-      <BulkActionsBar
-        selectedCount={selectedIds.length}
-        categories={categories}
-        onClearSelection={() => setSelectedIds([])}
-        onBatchDelete={() => setIsBatchDeleteModalOpen(true)}
-        onBatchCategory={handleBatchCategory}
-      />
+      {/* Floating Bulk Actions Bar (only relevant when transactions are selected) */}
+      {activeSection === 'transactions' && (
+        <BulkActionsBar
+          selectedCount={selectedIds.length}
+          categories={categories}
+          onClearSelection={() => setSelectedIds([])}
+          onBatchDelete={() => setIsBatchDeleteModalOpen(true)}
+          onBatchCategory={handleBatchCategory}
+        />
+      )}
 
-      {/* Modals */}
+      {/* Native <dialog> Modals */}
       <QuickTransactionModal
         isOpen={isQuickEntryOpen}
         accounts={accounts}
         categories={categories}
         onClose={() => setIsQuickEntryOpen(false)}
         onSuccess={handleRefresh}
+        onNotify={notify}
       />
 
       <CSVImportModal
@@ -609,11 +583,12 @@ export const App: React.FC = () => {
       />
 
       <PendingActionsModal
-        isOpen={isPendingModalOpen}
+        isOpen={isPendingModalOpen && activeSection !== 'hitl'}
         isPrivacyMode={isPrivacyMode}
         actions={pendingActions}
         onClose={() => setIsPendingModalOpen(false)}
         onRefresh={handleRefresh}
+        onNotify={notify}
       />
 
       <EditTransactionModal
@@ -623,6 +598,7 @@ export const App: React.FC = () => {
         categories={categories}
         onClose={() => setEditingTx(null)}
         onSuccess={handleRefresh}
+        onNotify={notify}
       />
 
       {/* Delete Single Modal */}

@@ -25,16 +25,17 @@ export const CashflowCard: React.FC<CashflowCardProps> = ({
   const netPositive = isNonNegativeCents(projectedNet)
 
   return (
-    <div className="bui-card p-5">
+    <section aria-label="Projeção de Liquidez Real" className="bui-card p-5">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         {/* Title & Subtitle */}
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--bui-accent-blue)] flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--bui-accent-blue)] flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               Projeção de Liquidez Real (Open Finance)
-            </span>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-lime">
+            </h2>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bui-badge-lime inline-flex items-center gap-1">
+              <span className="bui-dot-lime" aria-hidden="true" />
               Sem Dupla Contagem
             </span>
           </div>
@@ -46,43 +47,45 @@ export const CashflowCard: React.FC<CashflowCardProps> = ({
         {/* Metrics Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
           {/* Saldo em Contas */}
-          <div className="bui-inner px-4 py-2.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-[var(--bui-text-secondary)]">
-              <Wallet className="w-3.5 h-3.5 text-[var(--bui-lime)]" />
+          <div className="bui-inner px-4 py-3">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--bui-text-secondary)]">
+              <Wallet className="w-3.5 h-3.5 text-[var(--bui-lime)]" aria-hidden="true" />
               <span>Reservas Líquidas</span>
             </div>
-            <div className="text-sm font-bold font-mono-num text-[var(--bui-text-primary)] mt-1">
+            <div className="text-base font-bold font-mono-num text-[var(--bui-text-primary)] mt-1">
               {isLoading ? '...' : formatCurrency(liquidBalance, isPrivacyMode)}
             </div>
           </div>
 
           {/* Faturas a Pagar */}
-          <div
+          <button
+            type="button"
             onClick={onInspectInvoices}
-            className={`bui-inner px-4 py-2.5 ${
-              onInspectInvoices ? 'cursor-pointer hover:border-[var(--bui-border-strong)]' : ''
+            disabled={!onInspectInvoices}
+            className={`bui-inner px-4 py-3 text-left w-full ${
+              onInspectInvoices ? 'cursor-pointer hover:border-[var(--bui-border-strong)] transition' : ''
             }`}
           >
-            <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--bui-text-secondary)]">
+            <div className="flex items-center justify-between gap-2 text-xs text-[var(--bui-text-secondary)]">
               <span className="flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-[var(--bui-amber)]" />
+                <CreditCard className="w-3.5 h-3.5 text-[var(--bui-amber)]" aria-hidden="true" />
                 <span>Faturas Pendentes ({count})</span>
               </span>
-              {onInspectInvoices && <ArrowRight className="w-3 h-3 opacity-60" />}
+              {onInspectInvoices && <ArrowRight className="w-3.5 h-3.5 opacity-60" aria-hidden="true" />}
             </div>
-            <div className="text-sm font-bold font-mono-num text-[var(--bui-amber)] mt-1">
+            <div className="text-base font-bold font-mono-num text-[var(--bui-amber)] mt-1">
               {isLoading ? '...' : formatCurrency(unpaidInvoices, isPrivacyMode)}
             </div>
-          </div>
+          </button>
 
           {/* Liquidez Projetada */}
-          <div className="bui-inner px-4 py-2.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-[var(--bui-text-secondary)]">
-              <TrendingUp className="w-3.5 h-3.5 text-[var(--bui-accent-blue)]" />
+          <div className="bui-inner px-4 py-3">
+            <div className="flex items-center gap-1.5 text-xs text-[var(--bui-text-secondary)]">
+              <TrendingUp className="w-3.5 h-3.5 text-[var(--bui-accent-blue)]" aria-hidden="true" />
               <span>Liquidez Livre</span>
             </div>
             <div
-              className={`text-sm font-bold font-mono-num mt-1 ${
+              className={`text-base font-bold font-mono-num mt-1 ${
                 netPositive ? 'text-[var(--bui-lime)]' : 'text-[var(--bui-rose)]'
               }`}
             >
@@ -91,6 +94,6 @@ export const CashflowCard: React.FC<CashflowCardProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </section>
   )
 }

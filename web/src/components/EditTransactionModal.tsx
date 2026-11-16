@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useId } from 'react'
 import { X, Save, AlertTriangle } from 'lucide-react'
 import { Account, Category, Transaction, TransactionType } from '../types'
 import { updateTransaction } from '../api'
@@ -7,6 +7,7 @@ import {
   isValidPositiveMoneyInput,
   toSignedDecimalString,
 } from '../utils/money'
+import { ModalDialog } from './ModalDialog'
 
 interface EditTransactionModalProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ interface EditTransactionModalProps {
   categories: Category[]
   onClose: () => void
   onSuccess: () => void
+  onNotify?: (message: string, type: 'success' | 'error') => void
 }
 
 export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
@@ -24,6 +26,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   categories,
   onClose,
   onSuccess,
+  onNotify,
 }) => {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -36,6 +39,18 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [notes, setNotes] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const uid = useId()
+  const titleId = `${uid}-title`
+  const descId = `${uid}-desc`
+  const amountId = `${uid}-amount`
+  const typeId = `${uid}-type`
+  const dateId = `${uid}-date`
+  const accountSelectId = `${uid}-account`
+  const categorySelectId = `${uid}-category`
+  const tagsId = `${uid}-tags`
+  const projectId = `${uid}-project`
+  const notesId = `${uid}-notes`
 
   useEffect(() => {
     if (transaction) {
@@ -55,10 +70,10 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
     }
   }, [transaction])
 
-  if (!isOpen || !transaction) return null
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!transaction) return
+
     if (!description.trim()) {
       setErrorMessage('Descrição é obrigatória.')
       return
@@ -99,6 +114,7 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
         notes: notes.trim(),
         metadata,
       })
+      onNotify?.('Lançamento atualizado com sucesso.', 'success')
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -109,35 +125,49 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
-      <div className="bui-card max-w-lg w-full overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
+    <ModalDialog
+      isOpen={isOpen && Boolean(transaction)}
+      onClose={onClose}
+      labelledBy={titleId}
+    >
+      <div className="bui-card w-full max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between">
-          <h2 className="text-base font-bold text-[var(--bui-text-primary)]">
+        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between shrink-0">
+          <h2 id={titleId} className="text-base font-bold text-[var(--bui-text-primary)]">
             Editar Lançamento
           </h2>
-          <button onClick={onClose} className="bui-pill-control p-1.5">
-            <X className="w-4 h-4" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="bui-pill-control p-1.5"
+            aria-label="Fechar modal"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {errorMessage && (
-            <div className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
+            <div role="alert" className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {/* Description */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+            <label
+              htmlFor={descId}
+              className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+            >
               Descrição *
             </label>
             <input
+              id={descId}
               type="text"
               required
+              autoFocus
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
@@ -145,13 +175,18 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           </div>
 
           {/* Amount and Type Grid */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={amountId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Valor (R$) *
               </label>
               <input
+                id={amountId}
                 type="text"
+                inputMode="decimal"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -161,13 +196,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={typeId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Tipo *
               </label>
               <select
+                id={typeId}
                 value={type}
                 onChange={(e) => setType(e.target.value as TransactionType)}
-                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               >
                 <option value="EXPENSE">Despesa</option>
                 <option value="INCOME">Receita</option>
@@ -177,28 +216,36 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           </div>
 
           {/* Date and Account Grid */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={dateId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Data *
               </label>
               <input
+                id={dateId}
                 type="date"
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-mono-num text-[var(--bui-text-primary)] focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-mono-num text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={accountSelectId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Conta *
               </label>
               <select
+                id={accountSelectId}
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -211,13 +258,17 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
 
           {/* Category */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+            <label
+              htmlFor={categorySelectId}
+              className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+            >
               Categoria
             </label>
             <select
+              id={categorySelectId}
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
             >
               <option value="">Sem Categoria</option>
               {categories.map((c) => (
@@ -229,44 +280,56 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
           </div>
 
           {/* Tags & Project */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={tagsId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Tags (vírgula)
               </label>
               <input
+                id={tagsId}
                 type="text"
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
                 placeholder="fixo, viagem"
-                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={projectId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Projeto / Centro
               </label>
               <input
+                id={projectId}
                 type="text"
                 value={projectInput}
                 onChange={(e) => setProjectInput(e.target.value)}
                 placeholder="Ex.: Férias 2026"
-                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               />
             </div>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+            <label
+              htmlFor={notesId}
+              className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+            >
               Observações / Notas
             </label>
             <textarea
+              id={notesId}
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none"
+              className="w-full py-2 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
               placeholder="Anotações opcionais..."
             />
           </div>
@@ -285,12 +348,12 @@ export const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
               disabled={isSaving}
               className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] text-white font-bold text-xs shadow-sm transition disabled:opacity-40"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{isSaving ? 'Salvando...' : 'Salvar Alterações'}</span>
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </ModalDialog>
   )
 }

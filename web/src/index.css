@@ -3,9 +3,12 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --bui-target-size: 24px;
   /* Board UI — Light Mode (Padrão Inicial) */
   --bui-bg-canvas: #FFFFFF;
   --bui-bg-sidebar: #F8F8FA;
+  --bui-bg-header: rgba(255, 255, 255, 0.88);
   --bui-bg-card: #F5F5F6;
   --bui-bg-inner: #FFFFFF;
   --bui-bg-hover: #EBEBED;
@@ -17,12 +20,17 @@
   --bui-text-muted: #71717A;
   --bui-accent-blue: #2563EB;
   --bui-accent-blue-hover: #1D4ED8;
+  --bui-accent: var(--bui-accent-blue);
+  --bui-accent-hover: var(--bui-accent-blue-hover);
   --bui-lime: #65A30D;
   --bui-lime-bar: #84CC16;
+  --bui-chart-lime: var(--bui-lime-bar);
   --bui-lime-bg: rgba(132, 204, 22, 0.14);
   --bui-lime-border: rgba(101, 163, 13, 0.28);
   --bui-teal: #0D9488;
   --bui-teal-bar: #14B8A6;
+  --bui-chart-teal: var(--bui-teal-bar);
+  --bui-chart-purple: #7C3AED;
   --bui-rose: #E11D48;
   --bui-rose-bg: rgba(244, 63, 94, 0.10);
   --bui-rose-border: rgba(225, 29, 72, 0.24);
@@ -32,12 +40,15 @@
   --bui-blue-bg: rgba(37, 99, 235, 0.10);
   --bui-blue-border: rgba(37, 99, 235, 0.24);
   --bui-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  scrollbar-color: var(--bui-bg-track) var(--bui-bg-sidebar);
 }
 
 html.dark {
+  color-scheme: dark;
   /* Board UI — Dark Mode */
   --bui-bg-canvas: #121212;
   --bui-bg-sidebar: #151518;
+  --bui-bg-header: rgba(18, 18, 18, 0.88);
   --bui-bg-card: #18181B;
   --bui-bg-inner: #212125;
   --bui-bg-hover: #2A2A30;
@@ -55,6 +66,7 @@ html.dark {
   --bui-lime-border: rgba(158, 240, 26, 0.25);
   --bui-teal: #2DD4BF;
   --bui-teal-bar: #2DD4BF;
+  --bui-chart-purple: #8B5CF6;
   --bui-rose: #FB7185;
   --bui-rose-bg: rgba(251, 113, 133, 0.12);
   --bui-rose-border: rgba(251, 113, 133, 0.25);
@@ -66,12 +78,43 @@ html.dark {
   --bui-card-shadow: none;
 }
 
+@media (pointer: coarse) {
+  :root {
+    --bui-target-size: 44px;
+  }
+}
+
 @layer base {
+  html {
+    scroll-padding-top: 4.5rem;
+    scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    accent-color: var(--bui-accent-blue);
+  }
+
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--bui-bg-canvas);
     color: var(--bui-text-primary);
+    overflow-wrap: break-word;
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  :where(button, select, input:not([type="checkbox"], [type="radio"]), [role="button"]) {
+    min-block-size: var(--bui-target-size);
+    min-inline-size: var(--bui-target-size);
+  }
+
+  :where(button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--bui-accent-blue);
+    outline-offset: 2px;
+  }
+
+  @media (pointer: coarse) {
+    input:not([type="checkbox"], [type="radio"]),
+    select,
+    textarea {
+      font-size: max(1rem, 1em);
+    }
   }
 }
 
@@ -188,21 +231,59 @@ html.dark {
   box-shadow: 0 0 8px var(--bui-amber-bg);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bui-bg-sidebar);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--bui-bg-track);
+.bui-dot-blue {
+  width: 7px;
+  height: 7px;
   border-radius: 9999px;
+  background-color: var(--bui-accent-blue);
+  box-shadow: 0 0 8px var(--bui-blue-bg);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--bui-text-muted);
+/* Native <dialog> Top Layer & Scroll Containment */
+dialog:modal {
+  overscroll-behavior: contain;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: auto;
+  max-width: min(100vw - 1.5rem, 100%);
+  max-height: calc(100dvh - 1.5rem);
+  overflow: visible;
+}
+
+dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Responsive Table Container Query Context */
+.bui-table-container {
+  container-type: inline-size;
+}
+
+/* Custom Scrollbar Fallback for Browsers without scrollbar-color */
+@supports not (scrollbar-color: auto) {
+  * {
+    scrollbar-width: auto;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bui-bg-sidebar);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--bui-bg-track);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--bui-text-muted);
+  }
 }

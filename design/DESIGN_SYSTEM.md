@@ -31,28 +31,29 @@ O Design System do **IntelliFinance** combina a estética tátil, limpa e de alt
 | :--- | :--- | :---: | :---: |
 | `--bui-bg-canvas` | Fundo global da aplicação (`<body>`) | `#FFFFFF` | `#121212` |
 | `--bui-bg-sidebar` | Fundo da Sidebar Lateral e Topbar | `#F8F8FA` | `#151518` |
+| `--bui-bg-header` | Fundo translúcido da Topbar Sticky | `rgba(255,255,255,0.88)` | `rgba(18,18,18,0.88)` |
 | `--bui-bg-card` | Superfície de Cards (KPIs, Gráficos, Containers) | `#F5F5F6` | `#18181B` |
 | `--bui-bg-inner` | Superfícies internas aninhadas, inputs e boxes de ícone | `#FFFFFF` | `#212125` |
-| `--bui-bg-hover` | Estado `:hover` de linhas e controles secundários | `#ECECEF` | `#27272C` |
-| `--bui-bg-track` | Trilha das cápsulas de gráficos (`capsule-track`) | `#E5E5E7` | `#26262A` |
-| `--bui-border` | Borda estrutural hairline (`1px`) de cards e tabelas | `#E5E5E5` | `rgba(255, 255, 255, 0.08)` |
-| `--bui-border-strong` | Borda de botões pílula, selects e inputs | `#D4D4D8` | `rgba(255, 255, 255, 0.14)` |
+| `--bui-bg-hover` | Estado `:hover` de linhas e controles secundários | `#EBEBED` | `#2A2A30` |
+| `--bui-bg-track` | Trilha das cápsulas de gráficos (`bui-bar-track`) | `#E5E5E7` | `#26262A` |
+| `--bui-border` | Borda estrutural hairline (`1px`) de cards e tabelas | `rgba(0,0,0,0.07)` | `rgba(255,255,255,0.07)` |
+| `--bui-border-strong` | Borda de botões pílula, selects e inputs | `rgba(0,0,0,0.14)` | `rgba(255,255,255,0.14)` |
 | `--bui-text-primary` | Títulos, valores de KPIs, descrições principais | `#0A0A0A` | `#FAFAFA` |
-| `--bui-text-secondary` | Rótulos secundários, datas, subtítulos | `#6B7280` | `#8E8E93` |
-| `--bui-text-muted` | Cabeçalhos uppercase, placeholders, notas | `#9CA3AF` | `#52525B` |
-| `--bui-accent` | Item ativo da Sidebar, CTAs primários, foco ativo | `#2563EB` | `#1D63FF` |
-| `--bui-accent-hover` | Hover de botão primário | `#1D4ED8` | `#3B76FF` |
-| `--bui-chart-lime` | Série primária de gráficos Capsule-Track | `#84CC16` | `#9EF01A` |
-| `--bui-chart-teal` | Série secundária (Receitas / Liquidez) | `#0D9488` | `#00E5BE` |
+| `--bui-text-secondary` | Rótulos secundários, datas, subtítulos | `#52525B` | `#9CA3AF` |
+| `--bui-text-muted` | Cabeçalhos uppercase, placeholders, notas | `#71717A` | `#6B7280` |
+| `--bui-accent-blue` / `--bui-accent` | Item ativo da Sidebar, CTAs primários, foco ativo | `#2563EB` | `#1D63FF` |
+| `--bui-accent-blue-hover` / `--bui-accent-hover` | Hover de botão primário | `#1D4ED8` | `#3B76FF` |
+| `--bui-lime-bar` / `--bui-chart-lime` | Série primária de gráficos Capsule-Track | `#84CC16` | `#9EF01A` |
+| `--bui-teal-bar` / `--bui-chart-teal` | Série secundária (Receitas / Liquidez) | `#14B8A6` | `#2DD4BF` |
 | `--bui-chart-purple` | Série terciária / Atividade | `#7C3AED` | `#8B5CF6` |
-| `--bui-badge-lime-bg` | Fundo de badge positivo / receita / conciliado | `#ECFCCB` | `rgba(158, 240, 26, 0.14)` |
-| `--bui-badge-lime-text` | Texto de badge positivo / receita / conciliado | `#365314` | `#9EF01A` |
-| `--bui-badge-rose-bg` | Fundo de badge despesa / estouro de orçamento | `#FFE4E6` | `rgba(244, 63, 94, 0.16)` |
-| `--bui-badge-rose-text` | Texto de badge despesa / estouro de orçamento | `#9F1239` | `#FB7185` |
-| `--bui-badge-amber-bg` | Fundo de badge alerta / fatura / revisão HITL | `#FEF3C7` | `rgba(245, 158, 11, 0.16)` |
-| `--bui-badge-amber-text`| Texto de badge alerta / fatura / revisão HITL | `#92400E` | `#FBBF24` |
-| `--bui-badge-blue-bg` | Fundo de badge transferência / Open Finance | `#DBEAFE` | `rgba(59, 130, 246, 0.16)` |
-| `--bui-badge-blue-text` | Texto de badge transferência / Open Finance | `#1E40AF` | `#60A5FA` |
+| `--bui-lime-bg` | Fundo de badge positivo / receita / conciliado | `rgba(132,204,22,0.14)` | `rgba(158,240,26,0.12)` |
+| `--bui-lime` | Texto de badge positivo / receita / conciliado | `#65A30D` | `#9EF01A` |
+| `--bui-rose-bg` | Fundo de badge despesa / estouro de orçamento | `rgba(244,63,94,0.10)` | `rgba(251,113,133,0.12)` |
+| `--bui-rose` | Texto de badge despesa / estouro de orçamento | `#E11D48` | `#FB7185` |
+| `--bui-amber-bg` | Fundo de badge alerta / fatura / revisão HITL | `rgba(245,158,11,0.12)` | `rgba(251,191,36,0.12)` |
+| `--bui-amber` | Texto de badge alerta / fatura / revisão HITL | `#D97706` | `#FBBF24` |
+| `--bui-blue-bg` | Fundo de badge transferência / Open Finance | `rgba(37,99,235,0.10)` | `rgba(29,99,255,0.15)` |
+| `--bui-accent-blue` | Texto de badge transferência / Open Finance | `#2563EB` | `#1D63FF` |
 
 ---
 
@@ -75,15 +76,15 @@ O Design System do **IntelliFinance** combina a estética tátil, limpa e de alt
 - Centro: Rótulo descritivo em `--bui-text-secondary` (`text-xs font-medium`).
 - Base: Valor principal (`text-2xl font-bold tracking-tight`) + pílula semântica ao lado (`bui-badge-lime`, `bui-badge-rose`, `bui-badge-amber` ou `bui-badge-blue`).
 
-### 4.2 Gráficos "Capsule Track" & Lista Numérica Equivalente
-- Cada barra vertical ou horizontal utiliza uma trilha completa em formato de cápsula (`.bui-bar-track`, `rounded-xl`) com preenchimento interno arredondado (`.bui-bar-fill-lime` ou `.bui-bar-fill-teal`).
-- Ao lado de todo gráfico de categorias, renderiza-se obrigatoriamente a **lista numérica equivalente** em linhas `.bui-inner` clicáveis (com ponto de cor, nome da categoria, quantidade de itens, percentual e valor em `R$`).
+### 4.2 Gráficos "Capsule Track" Unificados & Métricas de Categoria
+- Cada barra horizontal utiliza uma trilha completa em formato de cápsula (`.bui-bar-track`, `rounded-full`) com preenchimento interno arredondado (`.bui-bar-fill-lime`, `.bui-bar-fill-teal` ou `.bui-bar-fill-amber`).
+- O painel de distribuição por categorias (`CategoryBreakdownPanel`) apresenta de forma unificada — em um único card interativo — o ponto de cor da categoria, nome, quantidade de lançamentos, barra `Capsule Track` proporcional, percentual e valor em `R$`, permitindo filtrar e navegar para a aba de Transações em 1 clique.
 
 ### 4.3 Tabelas de Dados com "Status Dots" e Filtros em Pílula
-- Filtros superiores em controles `.bui-pill-control` (`rounded-xl`) com `<label>` acessível e barra de **Chips de Filtros Ativos** para limpeza em 1 clique.
-- Colunas de estado/conciliação exibem pílulas com ponto luminoso (`bui-dot-lime`, `bui-dot-amber`, `bui-dot-blue`).
+- Filtros superiores em `<search>` com controles `.bui-pill-control` (`rounded-xl`), `<label>` acessível e barra de **Chips de Filtros Ativos** para limpeza em 1 clique.
+- Colunas de estado/conciliação exibem pílulas com ponto luminoso (`.bui-dot-lime`, `.bui-dot-amber`, `.bui-dot-blue`).
 
-### 4.4 Responsividade Estrita (`390x844` Mobile Viewport)
-- Zero rolagem horizontal no `<body>` (`overflow-x-hidden`).
-- Tabelas encapsulam `overflow-x-auto` internamente.
-- Rótulos (`<label>`) sempre visíveis acima de todos os inputs de formulário.
+### 4.4 Responsividade Estrita (`390x844` Mobile Viewport) e Overlays Nativos
+- Zero rolagem horizontal no `<body>`, com navegação mobile fixa no rodapé (`safe-area-inset-bottom`) e cards empilhados em telas estreitas.
+- Modais implementados sobre `<dialog>` nativo (`showModal()`, `closedby="any"`, `overscroll-behavior: contain` em `dialog:modal` e `dialog::backdrop`).
+- Rótulos (`<label htmlFor>`) sempre associados semanticamente aos controles de formulário.

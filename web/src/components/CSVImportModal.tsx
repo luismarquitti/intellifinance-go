@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useId } from 'react'
 import { Upload, X, FileText, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react'
 import { Account, CSVIngestResult } from '../types'
 import { importCSV } from '../api'
+import { ModalDialog } from './ModalDialog'
 
 interface CSVImportModalProps {
   isOpen: boolean
@@ -25,7 +26,16 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   const [result, setResult] = useState<CSVIngestResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  if (!isOpen) return null
+  const uid = useId()
+  const titleId = `${uid}-title`
+  const accountSelectId = `${uid}-account`
+  const fileInputId = `${uid}-file`
+
+  useEffect(() => {
+    if (isOpen && !selectedAccountId && accounts.length > 0) {
+      setSelectedAccountId(accounts[0].id)
+    }
+  }, [isOpen, selectedAccountId, accounts])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -85,16 +95,16 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm">
-      <div className="bui-card max-w-lg w-full overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
+    <ModalDialog isOpen={isOpen} onClose={handleResetAndClose} labelledBy={titleId}>
+      <div className="bui-card w-full max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bui-inner flex items-center justify-center text-[var(--bui-accent-blue)]">
-              <Upload className="w-4 h-4" />
+              <Upload className="w-4 h-4" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[var(--bui-text-primary)]">
+              <h2 id={titleId} className="text-base font-bold text-[var(--bui-text-primary)]">
                 Importar Extrato CSV
               </h2>
               <p className="text-xs text-[var(--bui-text-muted)]">
@@ -102,17 +112,22 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={handleResetAndClose} className="bui-pill-control p-1.5">
-            <X className="w-4 h-4" />
+          <button
+            type="button"
+            onClick={handleResetAndClose}
+            className="bui-pill-control p-1.5"
+            aria-label="Fechar modal"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto">
           {result ? (
             <div className="space-y-4">
               <div className="bui-inner p-4 text-center">
-                <CheckCircle2 className="w-10 h-10 text-[var(--bui-lime)] mx-auto mb-2" />
+                <CheckCircle2 className="w-10 h-10 text-[var(--bui-lime)] mx-auto mb-2" aria-hidden="true" />
                 <h3 className="text-sm font-bold text-[var(--bui-text-primary)]">
                   Importação Concluída com Sucesso!
                 </h3>
@@ -139,6 +154,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
               </div>
 
               <button
+                type="button"
                 onClick={handleResetAndClose}
                 className="w-full py-2.5 rounded-xl bg-[var(--bui-accent-blue)] text-white font-bold text-xs transition"
               >
@@ -148,17 +164,21 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {errorMessage && (
-                <div className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                <div role="alert" className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+                <label
+                  htmlFor={accountSelectId}
+                  className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+                >
                   Conta de Destino *
                 </label>
                 <select
+                  id={accountSelectId}
                   value={selectedAccountId || accounts[0]?.id || ''}
                   onChange={(e) => setSelectedAccountId(e.target.value)}
                   className="w-full py-2.5 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs font-medium text-[var(--bui-text-primary)]"
@@ -172,37 +192,42 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+                <label
+                  htmlFor={fileInputId}
+                  className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+                >
                   Arquivo CSV *
                 </label>
-                <div
+                <button
+                  type="button"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-[var(--bui-border-strong)] hover:border-[var(--bui-accent-blue)] rounded-2xl p-6 text-center cursor-pointer transition bg-[var(--bui-bg-inner)]"
+                  className="w-full border-2 border-dashed border-[var(--bui-border-strong)] hover:border-[var(--bui-accent-blue)] rounded-2xl p-6 text-center cursor-pointer transition bg-[var(--bui-bg-inner)]"
                 >
                   <input
+                    id={fileInputId}
                     ref={fileInputRef}
                     type="file"
                     accept=".csv"
                     onChange={handleFileChange}
-                    className="hidden"
+                    className="sr-only"
                   />
                   {file ? (
                     <div className="flex items-center justify-center gap-2 text-[var(--bui-accent-blue)]">
-                      <FileText className="w-6 h-6" />
-                      <div className="text-left">
+                      <FileText className="w-6 h-6 shrink-0" aria-hidden="true" />
+                      <div className="text-left min-w-0">
                         <p className="text-xs font-bold text-[var(--bui-text-primary)] truncate max-w-xs">
                           {file.name}
                         </p>
-                        <p className="text-[10px] text-[var(--bui-text-muted)]">
+                        <p className="text-[11px] text-[var(--bui-text-muted)]">
                           {Math.round(file.size / 1024)} KB
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <Upload className="w-7 h-7 text-[var(--bui-text-muted)] mx-auto mb-2" />
+                      <Upload className="w-7 h-7 text-[var(--bui-text-muted)] mx-auto mb-2" aria-hidden="true" />
                       <p className="text-xs text-[var(--bui-text-primary)] font-semibold">
                         Arraste seu arquivo CSV aqui ou clique para selecionar
                       </p>
@@ -211,7 +236,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
                       </p>
                     </div>
                   )}
-                </div>
+                </button>
               </div>
 
               <button
@@ -224,7 +249,7 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
                 ) : (
                   <>
                     <span>Importar Extrato</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </>
                 )}
               </button>
@@ -232,6 +257,6 @@ export const CSVImportModal: React.FC<CSVImportModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </ModalDialog>
   )
 }

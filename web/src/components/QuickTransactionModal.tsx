@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useId } from 'react'
 import { X, Plus, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { Account, Category, TransactionStatus, TransactionType } from '../types'
 import { createTransaction } from '../api'
 import { isValidPositiveMoneyInput, toSignedDecimalString } from '../utils/money'
+import { ModalDialog } from './ModalDialog'
 
 interface QuickTransactionModalProps {
   isOpen: boolean
@@ -10,6 +11,7 @@ interface QuickTransactionModalProps {
   categories: Category[]
   onClose: () => void
   onSuccess: () => void
+  onNotify?: (message: string, type: 'success' | 'error') => void
 }
 
 export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
@@ -18,9 +20,11 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
   categories,
   onClose,
   onSuccess,
+  onNotify,
 }) => {
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<TransactionType>('EXPENSE')
+  const [transferOutflow, setTransferOutflow] = useState(true)
   const [description, setDescription] = useState('')
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -37,13 +41,25 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const uid = useId()
+  const titleId = `${uid}-title`
+  const amountId = `${uid}-amount`
+  const dateId = `${uid}-date`
+  const descId = `${uid}-desc`
+  const accountSelectId = `${uid}-account`
+  const categorySelectId = `${uid}-category`
+  const visibilityId = `${uid}-visibility`
+  const statusId = `${uid}-status`
+  const tagsId = `${uid}-tags`
+  const projectId = `${uid}-project`
+  const notesId = `${uid}-notes`
+  const advancedPanelId = `${uid}-advanced-panel`
+
   useEffect(() => {
     if (isOpen && !accountId && accounts.length > 0) {
       setAccountId(accounts[0].id)
     }
   }, [isOpen, accountId, accounts])
-
-  if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,7 +76,8 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
       return
     }
 
-    const signedAmount = toSignedDecimalString(amount, type === 'EXPENSE')
+    const isNegative = type === 'EXPENSE' || (type === 'TRANSFER' && transferOutflow)
+    const signedAmount = toSignedDecimalString(amount, isNegative)
     const metadata: Record<string, any> = {}
     if (tagsInput.trim()) {
       metadata.tags = tagsInput
@@ -92,6 +109,7 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
       setNotes('')
       setTagsInput('')
       setProjectInput('')
+      onNotify?.('Lançamento registrado com sucesso.', 'success')
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -102,40 +120,46 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bui-card max-w-lg w-full overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
+    <ModalDialog isOpen={isOpen} onClose={onClose} labelledBy={titleId}>
+      <div className="bui-card w-full max-h-[90dvh] flex flex-col overflow-hidden shadow-2xl border border-[var(--bui-border-strong)]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-[var(--bui-border)] flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-base font-bold text-[var(--bui-text-primary)]">
+            <h2 id={titleId} className="text-base font-bold text-[var(--bui-text-primary)]">
               Novo Lançamento Rápido
             </h2>
             <p className="text-xs text-[var(--bui-text-muted)]">
-              Preencha os 5 campos essenciais ou expanda para opções avançadas.
+              Preencha os campos essenciais ou expanda para opções avançadas.
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="bui-pill-control p-1.5"
             aria-label="Fechar modal"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {errorMessage && (
-            <div className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
+            <div role="alert" className="p-3 rounded-xl bui-badge-rose text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          {/* Type Selector Pills */}
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)]">
+          {/* Type Selector Pills (Expense, Income, Transfer) */}
+          <div
+            role="group"
+            aria-label="Tipo de lançamento"
+            className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)]"
+          >
             <button
               type="button"
+              aria-pressed={type === 'EXPENSE'}
               onClick={() => setType('EXPENSE')}
               className={`py-2 rounded-lg text-xs font-bold transition ${
                 type === 'EXPENSE'
@@ -147,6 +171,7 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
             </button>
             <button
               type="button"
+              aria-pressed={type === 'INCOME'}
               onClick={() => setType('INCOME')}
               className={`py-2 rounded-lg text-xs font-bold transition ${
                 type === 'INCOME'
@@ -156,16 +181,63 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
             >
               Receita (+)
             </button>
+            <button
+              type="button"
+              aria-pressed={type === 'TRANSFER'}
+              onClick={() => setType('TRANSFER')}
+              className={`py-2 rounded-lg text-xs font-bold transition ${
+                type === 'TRANSFER'
+                  ? 'bui-badge-blue'
+                  : 'text-[var(--bui-text-secondary)] hover:text-[var(--bui-text-primary)]'
+              }`}
+            >
+              Transf. (⇄)
+            </button>
           </div>
 
+          {type === 'TRANSFER' && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs">
+              <span className="font-medium text-[var(--bui-text-secondary)]">
+                Sentido na conta selecionada:
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={transferOutflow}
+                  onClick={() => setTransferOutflow(true)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                    transferOutflow ? 'bui-badge-rose' : 'bui-pill-control'
+                  }`}
+                >
+                  Saída (-)
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={!transferOutflow}
+                  onClick={() => setTransferOutflow(false)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                    !transferOutflow ? 'bui-badge-lime' : 'bui-pill-control'
+                  }`}
+                >
+                  Entrada (+)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 1. Valor & 2. Data */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={amountId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Valor (R$) *
               </label>
               <input
+                id={amountId}
                 type="text"
+                inputMode="decimal"
                 required
                 autoFocus
                 value={amount}
@@ -176,10 +248,14 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={dateId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Data *
               </label>
               <input
+                id={dateId}
                 type="date"
                 required
                 value={date}
@@ -191,10 +267,14 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
 
           {/* 3. Descrição */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+            <label
+              htmlFor={descId}
+              className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+            >
               Descrição / Estabelecimento *
             </label>
             <input
+              id={descId}
               type="text"
               required
               value={description}
@@ -205,12 +285,16 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
           </div>
 
           {/* 4. Conta & 5. Categoria */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={accountSelectId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Conta *
               </label>
               <select
+                id={accountSelectId}
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
                 className="w-full py-2.5 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
@@ -224,10 +308,14 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1">
+              <label
+                htmlFor={categorySelectId}
+                className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-secondary)] mb-1"
+              >
                 Categoria
               </label>
               <select
+                id={categorySelectId}
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full py-2.5 px-3 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)] focus:outline-none focus:border-[var(--bui-accent-blue)]"
@@ -246,28 +334,37 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
           <div className="pt-1">
             <button
               type="button"
+              aria-expanded={showAdvanced}
+              aria-controls={advancedPanelId}
               onClick={() => setShowAdvanced(!showAdvanced)}
               className="flex items-center gap-1.5 text-xs font-semibold text-[var(--bui-accent-blue)] hover:underline"
             >
               {showAdvanced ? (
-                <ChevronUp className="w-3.5 h-3.5" />
+                <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
               ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
+                <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
               )}
               <span>Opções Avançadas (Visibilidade, Status, Tags, Projeto, Notas)</span>
             </button>
 
             {showAdvanced && (
-              <div className="mt-3 p-3.5 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+              <div
+                id={advancedPanelId}
+                className="mt-3 p-3.5 rounded-xl bg-[var(--bui-bg-inner)] border border-[var(--bui-border)] space-y-3"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1">
+                    <label
+                      htmlFor={visibilityId}
+                      className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1"
+                    >
                       Visibilidade
                     </label>
                     <select
+                      id={visibilityId}
                       value={visibility}
                       onChange={(e) => setVisibility(e.target.value)}
-                      className="w-full py-1.5 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
+                      className="w-full py-2 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
                     >
                       <option value="SHARED">Compartilhada</option>
                       <option value="PRIVATE">Pessoal (Privada)</option>
@@ -276,13 +373,17 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1">
+                    <label
+                      htmlFor={statusId}
+                      className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1"
+                    >
                       Status
                     </label>
                     <select
+                      id={statusId}
                       value={status}
                       onChange={(e) => setStatus(e.target.value as TransactionStatus)}
-                      className="w-full py-1.5 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
+                      className="w-full py-2 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
                     >
                       <option value="COMPLETED">Efetivado</option>
                       <option value="PENDING">Pendente</option>
@@ -291,44 +392,56 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1">
+                    <label
+                      htmlFor={tagsId}
+                      className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1"
+                    >
                       Tags (separadas por vírgula)
                     </label>
                     <input
+                      id={tagsId}
                       type="text"
                       value={tagsInput}
                       onChange={(e) => setTagsInput(e.target.value)}
                       placeholder="reembolsavel, fixo"
-                      className="w-full py-1.5 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
+                      className="w-full py-2 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1">
+                    <label
+                      htmlFor={projectId}
+                      className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1"
+                    >
                       Projeto / Evento
                     </label>
                     <input
+                      id={projectId}
                       type="text"
                       value={projectInput}
                       onChange={(e) => setProjectInput(e.target.value)}
                       placeholder="Ex.: Reforma Casa"
-                      className="w-full py-1.5 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
+                      className="w-full py-2 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1">
+                  <label
+                    htmlFor={notesId}
+                    className="block text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)] mb-1"
+                  >
                     Observações
                   </label>
                   <textarea
+                    id={notesId}
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Notas adicionais..."
-                    className="w-full py-1.5 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
+                    className="w-full py-2 px-2.5 rounded-lg bg-[var(--bui-bg-card)] border border-[var(--bui-border)] text-xs text-[var(--bui-text-primary)]"
                   />
                 </div>
               </div>
@@ -349,12 +462,12 @@ export const QuickTransactionModal: React.FC<QuickTransactionModalProps> = ({
               disabled={isSaving}
               className="px-5 py-2 rounded-xl bg-[var(--bui-accent-blue)] hover:bg-[var(--bui-accent-blue-hover)] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4" aria-hidden="true" />
               <span>{isSaving ? 'Salvando...' : 'Registrar Lançamento'}</span>
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </ModalDialog>
   )
 }

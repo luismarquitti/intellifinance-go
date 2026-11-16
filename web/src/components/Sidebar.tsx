@@ -5,13 +5,6 @@ import {
   ArrowLeftRight,
   PieChart,
   Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  Sun,
-  Moon,
-  Eye,
-  EyeOff,
-  Calendar,
 } from 'lucide-react'
 import { AppSection, Session } from '../types'
 
@@ -19,15 +12,6 @@ interface SidebarProps {
   activeSection: AppSection
   onSelectSection: (section: AppSection) => void
   session: Session | null
-  isDark: boolean
-  onToggleTheme: () => void
-  isPrivacyMode: boolean
-  onTogglePrivacy: () => void
-  selectedMonthLabel: string
-  isAllPeriods: boolean
-  onPrevMonth: () => void
-  onNextMonth: () => void
-  onToggleAllPeriods: () => void
   invoicesCount: number
   transactionsTotal: number
   pendingCount: number
@@ -37,15 +21,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeSection,
   onSelectSection,
   session,
-  isDark,
-  onToggleTheme,
-  isPrivacyMode,
-  onTogglePrivacy,
-  selectedMonthLabel,
-  isAllPeriods,
-  onPrevMonth,
-  onNextMonth,
-  onToggleAllPeriods,
   invoicesCount,
   transactionsTotal,
   pendingCount,
@@ -53,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: {
     id: AppSection
     label: string
+    mobileLabel: string
     icon: React.ReactNode
     badge?: string | number
     badgeType?: 'neutral' | 'amber' | 'blue'
@@ -60,31 +36,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'overview',
       label: 'Principal',
-      icon: <LayoutGrid className="w-4 h-4" />,
+      mobileLabel: 'Principal',
+      icon: <LayoutGrid className="w-4 h-4" aria-hidden="true" />,
     },
     {
       id: 'accounts',
       label: 'Cartões & Faturas',
-      icon: <CreditCard className="w-4 h-4" />,
+      mobileLabel: 'Faturas',
+      icon: <CreditCard className="w-4 h-4" aria-hidden="true" />,
       badge: invoicesCount > 0 ? `${invoicesCount} fat.` : undefined,
       badgeType: 'blue',
     },
     {
       id: 'transactions',
       label: 'Transações',
-      icon: <ArrowLeftRight className="w-4 h-4" />,
+      mobileLabel: 'Transações',
+      icon: <ArrowLeftRight className="w-4 h-4" aria-hidden="true" />,
       badge: transactionsTotal > 0 ? transactionsTotal : undefined,
       badgeType: 'neutral',
     },
     {
       id: 'budgets',
       label: 'Orçamentos & Fixas',
-      icon: <PieChart className="w-4 h-4" />,
+      mobileLabel: 'Orçamento',
+      icon: <PieChart className="w-4 h-4" aria-hidden="true" />,
     },
     {
       id: 'hitl',
       label: 'Revisão IA (HITL)',
-      icon: <Sparkles className="w-4 h-4" />,
+      mobileLabel: 'Revisão IA',
+      icon: <Sparkles className="w-4 h-4" aria-hidden="true" />,
       badge: pendingCount > 0 ? pendingCount : undefined,
       badgeType: 'amber',
     },
@@ -93,120 +74,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside
-        className="w-[258px] shrink-0 border-r flex flex-col justify-between p-4 select-none hidden lg:flex"
-        style={{
-          backgroundColor: 'var(--bui-bg-sidebar)',
-          borderColor: 'var(--bui-border)',
-        }}
-      >
-        <div className="space-y-5">
+      <aside className="w-[252px] shrink-0 border-r border-[var(--bui-border)] bg-[var(--bui-bg-sidebar)] flex-col justify-between p-4 select-none hidden lg:flex">
+        <div className="space-y-6">
           {/* User / Workspace Header */}
-          <div className="flex items-center justify-between px-1.5 py-1">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0">
-                {session?.user_name ? session.user_name.slice(0, 2).toUpperCase() : 'LM'}
+          <div className="flex items-center gap-2.5 px-1.5 py-1">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0">
+              {session?.user_name ? session.user_name.slice(0, 2).toUpperCase() : 'LM'}
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold truncate text-[var(--bui-text-primary)]">
+                {session?.user_name || 'Luis Marquitti'}
               </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold truncate text-[var(--bui-text-primary)]">
-                  {session?.user_name || 'Luis Marquitti'}
-                </div>
-                <div className="text-[10px] text-[var(--bui-text-muted)] flex items-center gap-1.5 truncate">
-                  <span className="bui-dot-lime inline-block shrink-0" />
-                  <span className="truncate">{session?.tenant_name || 'Personal Pilot'}</span>
-                </div>
+              <div className="text-[11px] text-[var(--bui-text-muted)] flex items-center gap-1.5 truncate">
+                <span className="bui-dot-lime inline-block shrink-0" aria-hidden="true" />
+                <span className="truncate">{session?.tenant_name || 'Personal Pilot'}</span>
               </div>
             </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={onTogglePrivacy}
-                className="bui-pill-control p-1.5"
-                title={isPrivacyMode ? 'Mostrar valores' : 'Modo Privacidade (ocultar valores)'}
-                aria-label="Alternar Modo Privacidade"
-              >
-                {isPrivacyMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-              <button
-                onClick={onToggleTheme}
-                className="bui-pill-control p-1.5"
-                title={isDark ? 'Mudar para Tema Claro (Padrão)' : 'Mudar para Tema Escuro'}
-                aria-label="Alternar Tema Claro ou Escuro"
-              >
-                {isDark ? (
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
-                ) : (
-                  <Moon className="w-3.5 h-3.5 text-[var(--bui-accent-blue)]" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Global Month / Period Selector */}
-          <div className="space-y-1.5">
-            <div className="bui-inner px-2.5 py-2 flex items-center justify-between">
-              <button
-                onClick={onPrevMonth}
-                className="p-1 rounded-md hover:bg-[var(--bui-bg-hover)] text-[var(--bui-text-secondary)] hover:text-[var(--bui-text-primary)] transition"
-                title="Mês anterior"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <div className="text-center">
-                <span className="text-[10px] uppercase tracking-wider text-[var(--bui-text-muted)] block font-semibold">
-                  Período Ativo
-                </span>
-                <span className="text-xs font-bold text-[var(--bui-text-primary)]">
-                  {isAllPeriods ? 'Todo o Histórico' : selectedMonthLabel}
-                </span>
-              </div>
-              <button
-                onClick={onNextMonth}
-                className="p-1 rounded-md hover:bg-[var(--bui-bg-hover)] text-[var(--bui-text-secondary)] hover:text-[var(--bui-text-primary)] transition"
-                title="Próximo mês"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <button
-              onClick={onToggleAllPeriods}
-              className={`w-full py-1.5 px-2.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1.5 transition border ${
-                isAllPeriods
-                  ? 'bui-badge-blue font-semibold'
-                  : 'border-transparent text-[var(--bui-text-muted)] hover:text-[var(--bui-text-primary)] hover:bg-[var(--bui-bg-hover)]'
-              }`}
-            >
-              <Calendar className="w-3 h-3" />
-              <span>{isAllPeriods ? 'Filtrar por Mês Atual' : 'Ver Todo o Histórico'}</span>
-            </button>
           </div>
 
           {/* Navigation Menu */}
-          <div className="space-y-1">
-            <div className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)]">
+          <div className="space-y-1.5">
+            <div className="px-2.5 pb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--bui-text-muted)]">
               Navegação
             </div>
-            <nav className="space-y-1">
+            <nav aria-label="Navegação principal" className="space-y-1">
               {navItems.map((item) => {
                 const isActive = activeSection === item.id
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => onSelectSection(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
                       isActive
                         ? 'bg-[var(--bui-accent-blue)] text-white font-semibold shadow-sm'
                         : 'text-[var(--bui-text-secondary)] hover:text-[var(--bui-text-primary)] hover:bg-[var(--bui-bg-hover)]'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       {item.icon}
-                      <span>{item.label}</span>
+                      <span className="truncate">{item.label}</span>
                     </div>
                     {item.badge !== undefined && (
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono-num font-bold ${
+                        className={`text-[11px] px-1.5 py-0.5 rounded-md font-mono-num font-bold shrink-0 ${
                           isActive
                             ? 'bg-white/20 text-white'
                             : item.badgeType === 'amber'
@@ -233,7 +145,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[11px] font-semibold text-[var(--bui-text-secondary)]">
                 Open Finance Brasil
               </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bui-badge-lime">
+              <span className="text-[11px] px-1.5 py-0.5 rounded font-semibold bui-badge-lime inline-flex items-center gap-1">
+                <span className="bui-dot-lime inline-block" aria-hidden="true" />
                 Ativo
               </span>
             </div>
@@ -242,51 +155,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between px-1 text-[11px] text-[var(--bui-text-muted)]">
-            <span>Board UI Design</span>
-            <button
-              onClick={onToggleTheme}
-              className="font-semibold text-[var(--bui-text-secondary)] hover:text-[var(--bui-text-primary)] transition"
-            >
-              {isDark ? '☀️ Tema Claro' : '🌙 Tema Escuro'}
-            </button>
+          <div className="px-1 text-[11px] text-[var(--bui-text-muted)]">
+            Board UI Design System
           </div>
         </div>
       </aside>
 
-      {/* Mobile Navigation Bar */}
-      <div
-        className="lg:hidden sticky bottom-0 inset-x-0 z-40 border-t px-2 py-1.5 flex items-center justify-around"
-        style={{
-          backgroundColor: 'var(--bui-bg-sidebar)',
-          borderColor: 'var(--bui-border)',
-        }}
+      {/* Fixed Mobile Bottom Navigation Bar */}
+      <nav
+        aria-label="Navegação móvel"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[var(--bui-border)] bg-[var(--bui-bg-sidebar)]/95 backdrop-blur-md px-1.5 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around"
       >
         {navItems.map((item) => {
           const isActive = activeSection === item.id
           return (
             <button
               key={item.id}
+              type="button"
               onClick={() => onSelectSection(item.id)}
-              className={`flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl text-[10px] font-medium transition ${
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-xl text-[11px] font-medium transition min-w-[60px] ${
                 isActive
-                  ? 'text-[var(--bui-accent-blue)] font-bold'
-                  : 'text-[var(--bui-text-secondary)]'
+                  ? 'text-[var(--bui-accent-blue)] font-bold bg-[var(--bui-blue-bg)]'
+                  : 'text-[var(--bui-text-secondary)] hover:text-[var(--bui-text-primary)]'
               }`}
             >
               <div className="relative">
                 {item.icon}
                 {item.badge !== undefined && item.id === 'hitl' && (
-                  <span className="absolute -top-1.5 -right-2.5 px-1 rounded-full text-[9px] font-bold bg-amber-500 text-black">
+                  <span className="absolute -top-1.5 -right-3 px-1 rounded-full text-[10px] leading-tight font-bold bui-badge-amber">
                     {item.badge}
                   </span>
                 )}
               </div>
-              <span className="truncate max-w-[68px]">{item.label.split(' ')[0]}</span>
+              <span className="truncate max-w-[70px]">{item.mobileLabel}</span>
             </button>
           )
         })}
-      </div>
+      </nav>
     </>
   )
 }
