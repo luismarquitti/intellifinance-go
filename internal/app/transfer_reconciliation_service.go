@@ -84,8 +84,8 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 	var inflows []*domain.Transaction
 
 	for _, tx := range txs {
-		// Only consider transactions that are not void and not already paired
-		if tx.Status == domain.TransactionStatusVoid || tx.TransferPeerTransactionID != nil {
+		// Only consider settled/completed transactions that are not already paired
+		if tx.Status != domain.TransactionStatusCompleted || tx.TransferPeerTransactionID != nil {
 			continue
 		}
 		if existingProposedTxIDs[tx.ID] {
@@ -93,6 +93,10 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		}
 
 		if tx.Amount.IsNegative() {
+			// Credit card outflows (purchases/charges) are never outbound cash transfers to another account.
+			if acc := accMap[tx.AccountID]; acc != nil && acc.Type == domain.AccountTypeCreditCard {
+				continue
+			}
 			outflows = append(outflows, tx)
 		} else if tx.Amount.IsPositive() {
 			inflows = append(inflows, tx)
@@ -141,11 +145,14 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		})
 
 		bestInflow := candidateInflows[0]
-		pairedInflows[bestInflow.ID] = true
 
 		// Classify transaction pair
 		srcAcc := accMap[out.AccountID]
 		dstAcc := accMap[bestInflow.AccountID]
+
+		if isBillPay, ok := bestInflow.Metadata["is_bill_payment"].(bool); ok && isBillPay && (dstAcc == nil || dstAcc.Type != domain.AccountTypeCreditCard) {
+			continue
+		}
 
 		srcName := "Conta de Origem"
 		if srcAcc != nil {
@@ -162,16 +169,28 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		// Check if destination is Credit Card (Bill Payment)
 		if dstAcc != nil && dstAcc.Type == domain.AccountTypeCreditCard {
 			reconciliationType = "BILL_PAYMENT"
+			hasInvoicesForCard := false
+			var matchedInv *domain.CreditCardInvoice
 			// Try to match an invoice for this credit card account
 			for _, inv := range invoices {
 				if inv.AccountID == dstAcc.ID {
+					hasInvoicesForCard = true
 					if inv.TotalAmount.Equal(bestInflow.Amount) || math.Abs(inv.DueDate.Sub(bestInflow.Date).Hours())/24.0 <= 10.0 {
+						matchedInv = inv
 						matchedInvoiceID = &inv.ID
 						break
 					}
 				}
 			}
+			if matchedInv != nil && matchedInv.Status == domain.InvoiceStatusPaid {
+				continue
+			}
+			if hasInvoicesForCard && matchedInv == nil {
+				continue
+			}
 		}
+
+		pairedInflows[bestInflow.ID] = true
 
 		var desc string
 		if reconciliationType == "BILL_PAYMENT" {

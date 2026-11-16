@@ -37,7 +37,7 @@ export const CategoryBreakdownPanel: React.FC<CategoryBreakdownPanelProps> = ({
   let totalExpenseCents = 0n
 
   for (const tx of transactions) {
-    if (tx.type === 'TRANSFER') continue
+    if (tx.type === 'TRANSFER' || tx.status === 'PENDING' || tx.status === 'VOID') continue
     const cents = decimalToCents(tx.amount)
     if (tx.type === 'EXPENSE' || cents < 0n) {
       const absCents = cents < 0n ? -cents : cents

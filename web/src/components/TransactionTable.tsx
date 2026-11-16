@@ -12,6 +12,7 @@ import {
   Sparkles,
   FolderKanban,
   RotateCcw,
+  Clock,
 } from 'lucide-react'
 import { Account, Category, Pagination, Transaction } from '../types'
 import { formatCurrency, isNonNegativeCents } from '../utils/money'
@@ -179,6 +180,8 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                   (tx.type !== 'EXPENSE' && isNonNegativeCents(tx.amount))
                 const isTransfer =
                   tx.type === 'TRANSFER' || Boolean(tx.transfer_peer_transaction_id)
+                const isFutureOrPending =
+                  tx.status === 'PENDING' || Boolean(tx.metadata?.is_future)
                 const tags: string[] = Array.isArray(tx.metadata?.tags)
                   ? tx.metadata.tags
                   : []
@@ -188,7 +191,11 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                   <tr
                     key={tx.id}
                     className={`hover:bg-[var(--bui-bg-hover)]/45 transition-colors ${
-                      isSelected ? 'bg-[var(--bui-blue-bg)]' : ''
+                      isSelected
+                        ? 'bg-[var(--bui-blue-bg)]'
+                        : isFutureOrPending
+                        ? 'bg-amber-500/[0.04] border-l-2 border-l-[var(--bui-amber)]'
+                        : ''
                     }`}
                   >
                     {/* Checkbox */}
@@ -203,7 +210,13 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
 
                     {/* Data */}
                     <td className="py-3 px-4 font-mono-num text-[11px] text-[var(--bui-text-secondary)] whitespace-nowrap">
-                      {formatDate(tx.date)}
+                      <div>{formatDate(tx.date)}</div>
+                      {isFutureOrPending && (
+                        <div className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-sans font-semibold text-[var(--bui-amber)]">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>Agendado</span>
+                        </div>
+                      )}
                     </td>
 
                     {/* Descrição + Tags / Project */}
@@ -290,7 +303,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
 
                     {/* Status / Origem */}
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {isTransfer ? (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-blue">
                             Transferência
@@ -302,6 +315,15 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                         ) : (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-rose">
                             Despesa
+                          </span>
+                        )}
+                        {isFutureOrPending && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bui-badge-amber"
+                            title="Lançamento agendado para data futura — ainda não consolidado no saldo atual"
+                          >
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>Lançamento Futuro</span>
                           </span>
                         )}
                         {tx.is_ai_categorized && (
@@ -318,14 +340,21 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                     {/* Valor */}
                     <td
                       className={`py-3 px-4 text-right font-mono-num font-bold whitespace-nowrap ${
-                        isTransfer
+                        isFutureOrPending
+                          ? 'text-[var(--bui-amber)]'
+                          : isTransfer
                           ? 'text-[var(--bui-accent-blue)]'
                           : isIncome
                           ? 'text-[var(--bui-lime)]'
                           : 'text-[var(--bui-text-primary)]'
                       }`}
                     >
-                      {formatCurrency(tx.amount, isPrivacyMode)}
+                      <div>{formatCurrency(tx.amount, isPrivacyMode)}</div>
+                      {isFutureOrPending && (
+                        <div className="text-[10px] font-sans font-normal text-[var(--bui-text-muted)]">
+                          Não consolidado
+                        </div>
+                      )}
                     </td>
 
                     {/* Ações */}

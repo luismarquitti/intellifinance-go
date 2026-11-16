@@ -133,6 +133,7 @@ func main() {
 	for _, extAcc := range extAccounts {
 		accName := fmt.Sprintf("Pluggy %s", extAcc.Name)
 		var internalAcc *domain.Account
+		isNewAccount := false
 
 		if existing, ok := accountMap[extAcc.Number]; ok {
 			internalAcc = existing
@@ -161,6 +162,7 @@ func main() {
 				continue
 			}
 			internalAcc = newAcc
+			isNewAccount = true
 			accountMap[extAcc.Number] = internalAcc
 			logger.Info("created financial account", "id", internalAcc.ID, "name", internalAcc.Name, "type", internalAcc.Type)
 		}
@@ -275,6 +277,7 @@ func main() {
 		duplicateCount := 0
 		syntheticInvoiceTotals := make(map[uuid.UUID]decimal.Decimal)
 		var cardPayments []ports.ExternalTransaction
+		nowDateStr := time.Now().In(domain.BrazilLocation).Format("2006-01-02")
 
 		for _, tx := range extTxs {
 			txAmount := tx.Amount
@@ -356,6 +359,12 @@ func main() {
 				txMeta["is_bill_payment"] = true
 			}
 
+			txStatus := domain.TransactionStatusCompleted
+			if extAcc.Type != ports.ExternalAccountCreditCard && domain.StandardizeDateToBrazil(tx.Date) > nowDateStr {
+				txStatus = domain.TransactionStatusPending
+				txMeta["is_future"] = true
+			}
+
 			newTx, txErr := domain.NewTransaction(domain.NewTransactionParams{
 				TenantID:        tenantID,
 				AccountID:       internalAcc.ID,
@@ -365,7 +374,7 @@ func main() {
 				Amount:          txAmount,
 				Description:     tx.Description,
 				Type:            txType,
-				Status:          domain.TransactionStatusCompleted,
+				Status:          txStatus,
 				Visibility:      domain.VisibilityShared,
 				Source:          domain.SourceTypePluggy,
 				ExternalID:      tx.ID,
@@ -377,26 +386,28 @@ func main() {
 			}
 
 			// Ingest transaction
+			syncExisting := func() {
+				if internalBillID != nil && tx.ID != "" {
+					_ = postgres.WithTenantTx(ctx, pool, tenantID, userID, func(pgTx pgx.Tx) error {
+						_, execErr := pgTx.Exec(ctx, "UPDATE transactions SET bill_id = $1 WHERE tenant_id = $2 AND external_id = $3", *internalBillID, tenantID, tx.ID)
+						return execErr
+					})
+				}
+				if tx.ID != "" && extAcc.Type != ports.ExternalAccountCreditCard {
+					reconcileDuplicateTransactionStatus(ctx, pool, tenantID, userID, tx.ID, txStatus)
+				}
+			}
+
 			if err := txService.Create(ctx, newTx); err != nil {
 				if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique constraint") || strings.Contains(err.Error(), "uq_tenant_transaction_fingerprint") {
 					duplicateCount++
-					if internalBillID != nil && tx.ID != "" {
-						_ = postgres.WithTenantTx(ctx, pool, tenantID, userID, func(pgTx pgx.Tx) error {
-							_, execErr := pgTx.Exec(ctx, "UPDATE transactions SET bill_id = $1 WHERE tenant_id = $2 AND external_id = $3", *internalBillID, tenantID, tx.ID)
-							return execErr
-						})
-					}
+					syncExisting()
 					continue
 				}
 				logger.Warn("failed creating transaction", "err", err, "desc", tx.Description)
 				continue
 			}
-			if internalBillID != nil && tx.ID != "" {
-				_ = postgres.WithTenantTx(ctx, pool, tenantID, userID, func(pgTx pgx.Tx) error {
-					_, execErr := pgTx.Exec(ctx, "UPDATE transactions SET bill_id = $1 WHERE tenant_id = $2 AND external_id = $3", *internalBillID, tenantID, tx.ID)
-					return execErr
-				})
-			}
+			syncExisting()
 			createdCount++
 		}
 
@@ -412,9 +423,8 @@ func main() {
 		if extAcc.Type == ports.ExternalAccountCreditCard {
 			creditCardIDs = append(creditCardIDs, internalAcc.ID)
 			cardPaymentsByAccount[internalAcc.ID] = cardPayments
-		} else {
-			// Anchor liquid account balance to Pluggy's reported balance (adjusting for post-today scheduled transactions)
-			nowDateStr := time.Now().In(domain.BrazilLocation).Format("2006-01-02")
+		} else if isNewAccount {
+			// Anchor initial liquid account balance to Pluggy's reported balance (adjusting for post-today scheduled transactions)
 			futureDelta := decimal.Zero
 			for _, tx := range extTxs {
 				if domain.StandardizeDateToBrazil(tx.Date) > nowDateStr {
@@ -596,4 +606,26 @@ func reconcileCardInvoicesPaid(
 			_ = accountRepo.UpdateBalance(ctx, tenantID, cardAccountID, targetCardBal.Sub(cardAcc.Balance))
 		}
 	}
+}
+
+func reconcileDuplicateTransactionStatus(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	tenantID, userID uuid.UUID,
+	externalID string,
+	targetStatus domain.TransactionStatus,
+) {
+	if externalID == "" {
+		return
+	}
+	_ = postgres.WithTenantTx(ctx, pool, tenantID, userID, func(pgTx pgx.Tx) error {
+		var query string
+		if targetStatus == domain.TransactionStatusPending {
+			query = "UPDATE transactions SET status = 'PENDING', metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{is_future}', 'true'::jsonb), updated_at = NOW() WHERE tenant_id = $1 AND external_id = $2 AND status = 'COMPLETED'"
+		} else {
+			query = "UPDATE transactions SET status = 'COMPLETED', metadata = COALESCE(metadata, '{}'::jsonb) - 'is_future', updated_at = NOW() WHERE tenant_id = $1 AND external_id = $2 AND status = 'PENDING'"
+		}
+		_, execErr := pgTx.Exec(ctx, query, tenantID, externalID)
+		return execErr
+	})
 }

@@ -178,3 +178,106 @@ func TestTransferReconciliationService_ScanAndPropose(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, result2.ProposedActionsCount, "idempotent scan must not duplicate pending proposals")
 }
+
+func TestTransferReconciliationService_SkipsPendingCardOutflowsAndPaidInvoices(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	userID := uuid.New()
+
+	accRepo := newMockAccountRepo()
+	txRepo := newMockTxRepo(accRepo)
+	invRepo := newMockInvoiceRepo()
+	actionRepo := newMockPendingActionRepo()
+
+	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, actionRepo)
+
+	checkingA, _ := domain.NewAccount(tenantID, userID, "Itau Corrente", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
+	require.NoError(t, accRepo.Create(ctx, checkingA))
+	checkingB, _ := domain.NewAccount(tenantID, userID, "Reserva", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
+	require.NoError(t, accRepo.Create(ctx, checkingB))
+	ccAcc, _ := domain.NewAccount(tenantID, userID, "Mastercard Black", domain.AccountTypeCreditCard, "BRL", domain.VisibilityShared)
+	require.NoError(t, accRepo.Create(ctx, ccAcc))
+
+	now := time.Now().UTC()
+
+	// Seed an already-PAID invoice on ccAcc for R$ 1500.00
+	paidInv, err := domain.NewCreditCardInvoice(tenantID, ccAcc.ID, now, decimal.NewFromInt(1500), domain.InvoiceStatusPaid)
+	require.NoError(t, err)
+	require.NoError(t, invRepo.Save(ctx, paidInv))
+
+	// (a) PENDING future outflow on checkingA matching checkingB completed inflow (R$ 270.95)
+	pendingOut, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       checkingA.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.RequireFromString("-270.95"),
+		Description:     "Debito Futuro CPFL",
+		Type:            domain.TransactionTypeExpense,
+		Status:          domain.TransactionStatusPending,
+		Date:            now.AddDate(0, 0, 2),
+	})
+	require.NoError(t, txRepo.Create(ctx, pendingOut))
+	completedIn, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       checkingB.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.RequireFromString("270.95"),
+		Description:     "Credito Conta B",
+		Type:            domain.TransactionTypeIncome,
+		Status:          domain.TransactionStatusCompleted,
+		Date:            now.AddDate(0, 0, 2),
+	})
+	require.NoError(t, txRepo.Create(ctx, completedIn))
+
+	// (b) CREDIT_CARD outflow purchase (R$ 50.00) matching CHECKING inflow PIX (R$ 50.00)
+	cardPurchase, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       ccAcc.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.NewFromInt(-50),
+		Description:     "TagItau",
+		Type:            domain.TransactionTypeExpense,
+		Status:          domain.TransactionStatusCompleted,
+		Date:            now,
+	})
+	require.NoError(t, txRepo.Create(ctx, cardPurchase))
+	checkingPixIn, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       checkingA.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.NewFromInt(50),
+		Description:     "Pix recebido",
+		Type:            domain.TransactionTypeIncome,
+		Status:          domain.TransactionStatusCompleted,
+		Date:            now.AddDate(0, 0, -1),
+	})
+	require.NoError(t, txRepo.Create(ctx, checkingPixIn))
+
+	// (c) BILL_PAYMENT pair whose matched invoice is already PAID (R$ 1500.00)
+	outBill, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       checkingA.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.NewFromInt(-1500),
+		Description:     "INT PAG TIT BANCO ITAUCARD",
+		Type:            domain.TransactionTypeExpense,
+		Status:          domain.TransactionStatusCompleted,
+		Date:            now,
+	})
+	require.NoError(t, txRepo.Create(ctx, outBill))
+	inBill, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       ccAcc.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.NewFromInt(1500),
+		Description:     "Pagamento recebido",
+		Type:            domain.TransactionTypeTransfer,
+		Status:          domain.TransactionStatusCompleted,
+		Date:            now,
+	})
+	require.NoError(t, txRepo.Create(ctx, inBill))
+
+	result, err := reconciler.ScanAndPropose(ctx, tenantID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ProposedActionsCount, "must skip pending transactions, card purchases, and already-paid invoices")
+}
