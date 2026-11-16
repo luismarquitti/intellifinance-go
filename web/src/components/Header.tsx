@@ -26,7 +26,7 @@ interface HeaderProps {
 
 const SECTION_TITLES: Record<AppSection, string> = {
   overview: 'Visão Geral',
-  accounts: 'Contas & Faturas',
+  accounts: 'Cartões & Faturas',
   transactions: 'Transações',
   budgets: 'Orçamentos & Fixas',
   hitl: 'Revisão IA (HITL)',

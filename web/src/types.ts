@@ -53,9 +53,12 @@ export interface Transaction {
 }
 
 export interface TransactionSummary {
+  initial_balance: string
   total_income: string
   total_expense: string
   net_balance: string
+  final_balance: string
+  is_current_month?: boolean
   count: number
 }
 

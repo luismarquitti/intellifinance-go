@@ -29,10 +29,13 @@ type TransactionFilter struct {
 
 // TransactionSummary contains aggregated totals for the dashboard KPI cards.
 type TransactionSummary struct {
-	TotalIncome  decimal.Decimal `json:"total_income"`
-	TotalExpense decimal.Decimal `json:"total_expense"`
-	NetBalance   decimal.Decimal `json:"net_balance"`
-	Count        int64           `json:"count"`
+	InitialBalance decimal.Decimal `json:"initial_balance"`
+	TotalIncome    decimal.Decimal `json:"total_income"`
+	TotalExpense   decimal.Decimal `json:"total_expense"`
+	NetBalance     decimal.Decimal `json:"net_balance"`
+	FinalBalance   decimal.Decimal `json:"final_balance"`
+	IsCurrentMonth bool            `json:"is_current_month"`
+	Count          int64           `json:"count"`
 }
 
 // TransactionRepository defines the persistence contract for transactions and splits.

@@ -278,10 +278,13 @@ func (h *TransactionHandler) SummarizeTransactions(w http.ResponseWriter, r *htt
 	}
 
 	resp := dto.TransactionSummaryResponse{
-		TotalIncome:  summary.TotalIncome.StringFixed(2),
-		TotalExpense: summary.TotalExpense.StringFixed(2),
-		NetBalance:   summary.NetBalance.StringFixed(2),
-		Count:        summary.Count,
+		InitialBalance: summary.InitialBalance.StringFixed(2),
+		TotalIncome:    summary.TotalIncome.StringFixed(2),
+		TotalExpense:   summary.TotalExpense.StringFixed(2),
+		NetBalance:     summary.NetBalance.StringFixed(2),
+		FinalBalance:   summary.FinalBalance.StringFixed(2),
+		IsCurrentMonth: summary.IsCurrentMonth,
+		Count:          summary.Count,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

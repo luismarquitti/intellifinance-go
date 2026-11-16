@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'accounts',
-      label: 'Contas & Faturas',
+      label: 'Cartões & Faturas',
       icon: <CreditCard className="w-4 h-4" />,
       badge: invoicesCount > 0 ? `${invoicesCount} fat.` : undefined,
       badgeType: 'blue',

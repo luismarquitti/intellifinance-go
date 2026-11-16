@@ -12,6 +12,7 @@ import (
 	"github.com/luismarquitti/intellifinance-go/internal/adapters/outbound/persistence/postgres"
 	"github.com/luismarquitti/intellifinance-go/internal/config"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
+	"github.com/luismarquitti/intellifinance-go/internal/ports"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
@@ -202,4 +203,98 @@ func TestPendingActionRepository_WorkflowAndIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, domain.ActionStatusExecuted, executed.Status)
 	require.NotNil(t, executed.ExecutedAt)
+}
+
+func TestTransactionRepository_SummarizeMonthlyBalances(t *testing.T) {
+	pool := getIntegrationPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	tenantID, userID, ccAccountID := createTestTenantAndAccount(t, pool)
+	accRepo := postgres.NewAccountRepository(pool)
+	txRepo := postgres.NewTransactionRepository(pool)
+
+	// Create a checking account with opening anchor balance of 1000.00
+	checkingAcc, err := domain.NewAccount(tenantID, userID, "Checking Main", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
+	require.NoError(t, err)
+	checkingAcc.Balance = decimal.RequireFromString("1000.00")
+	require.NoError(t, accRepo.Create(ctx, checkingAcc))
+
+	// Past month: October (relative to current Brazil month, use 2 months ago and current month)
+	nowBr := time.Now().In(domain.BrazilLocation)
+	curYear, curMonth, _ := nowBr.Date()
+	curStart := time.Date(curYear, curMonth, 1, 0, 0, 0, 0, time.UTC)
+	curEnd := curStart.AddDate(0, 1, -1)
+	prevStart := curStart.AddDate(0, -1, 0)
+	prevEnd := curStart.AddDate(0, 0, -1)
+
+	prevIncome, err := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID: tenantID, AccountID: checkingAcc.ID, CreatedByUserID: &userID,
+		Date: prevStart.AddDate(0, 0, 4), Amount: decimal.RequireFromString("500.00"),
+		Description: "Prev Salary", Type: domain.TransactionTypeIncome, Source: domain.SourceTypeManual,
+	})
+	require.NoError(t, err)
+	require.NoError(t, txRepo.Create(ctx, prevIncome))
+
+	prevExpense, err := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID: tenantID, AccountID: checkingAcc.ID, CreatedByUserID: &userID,
+		Date: prevStart.AddDate(0, 0, 9), Amount: decimal.RequireFromString("-200.00"),
+		Description: "Prev Bill Payment", Type: domain.TransactionTypeExpense, Source: domain.SourceTypeManual,
+	})
+	require.NoError(t, err)
+	require.NoError(t, txRepo.Create(ctx, prevExpense))
+
+	curExpense, err := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID: tenantID, AccountID: checkingAcc.ID, CreatedByUserID: &userID,
+		Date: curStart.AddDate(0, 0, 2), Amount: decimal.RequireFromString("-150.00"),
+		Description: "Cur Groceries", Type: domain.TransactionTypeExpense, Source: domain.SourceTypeManual,
+	})
+	require.NoError(t, err)
+	require.NoError(t, txRepo.Create(ctx, curExpense))
+
+	// Credit card purchase in current month should NOT inflate liquid summary when AccountID is nil
+	ccPurchase, err := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID: tenantID, AccountID: ccAccountID, CreatedByUserID: &userID,
+		Date: curStart.AddDate(0, 0, 2), Amount: decimal.RequireFromString("-300.00"),
+		Description: "CC Store", Type: domain.TransactionTypeExpense, Source: domain.SourceTypeManual,
+	})
+	require.NoError(t, err)
+	require.NoError(t, txRepo.Create(ctx, ccPurchase))
+
+	// Summarize previous month: initial 1000.00, income 500.00, expense 200.00, final 1300.00
+	prevSum, err := txRepo.Summarize(ctx, tenantID, ports.TransactionFilter{
+		FromDate: &prevStart,
+		ToDate:   &prevEnd,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "1000.00", prevSum.InitialBalance.StringFixed(2))
+	require.Equal(t, "500.00", prevSum.TotalIncome.StringFixed(2))
+	require.Equal(t, "200.00", prevSum.TotalExpense.StringFixed(2))
+	require.Equal(t, "1300.00", prevSum.FinalBalance.StringFixed(2))
+	require.False(t, prevSum.IsCurrentMonth)
+	require.Equal(t, int64(2), prevSum.Count)
+
+	// Summarize current month: initial 1300.00, income 0.00, expense 150.00, final 1150.00
+	curSum, err := txRepo.Summarize(ctx, tenantID, ports.TransactionFilter{
+		FromDate: &curStart,
+		ToDate:   &curEnd,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "1300.00", curSum.InitialBalance.StringFixed(2))
+	require.Equal(t, "0.00", curSum.TotalIncome.StringFixed(2))
+	require.Equal(t, "150.00", curSum.TotalExpense.StringFixed(2))
+	require.Equal(t, "1150.00", curSum.FinalBalance.StringFixed(2))
+	require.True(t, curSum.IsCurrentMonth)
+	require.Equal(t, int64(1), curSum.Count)
+
+	// Summarize credit card account explicitly
+	ccSum, err := txRepo.Summarize(ctx, tenantID, ports.TransactionFilter{
+		AccountID: &ccAccountID,
+		FromDate:  &curStart,
+		ToDate:    &curEnd,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "0.00", ccSum.InitialBalance.StringFixed(2))
+	require.Equal(t, "300.00", ccSum.TotalExpense.StringFixed(2))
+	require.Equal(t, "-300.00", ccSum.FinalBalance.StringFixed(2))
 }

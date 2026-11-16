@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { Sidebar } from './components/Sidebar'
 import { Header } from './components/Header'
 import { KPICards } from './components/KPICards'
@@ -116,8 +117,10 @@ export const App: React.FC = () => {
   const applyMonthBoundsToFilters = useCallback((cursor: Date) => {
     const y = cursor.getFullYear()
     const m = cursor.getMonth()
-    const firstDay = new Date(y, m, 1).toISOString().split('T')[0]
-    const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0]
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const firstDay = `${y}-${pad(m + 1)}-01`
+    const lastDate = new Date(y, m + 1, 0).getDate()
+    const lastDay = `${y}-${pad(m + 1)}-${pad(lastDate)}`
     setIsAllPeriods(false)
     setFilters((prev) => ({
       ...prev,
@@ -355,12 +358,70 @@ export const App: React.FC = () => {
 
         {/* Section Content */}
         <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+          {/* Month / Period Filter Bar for Overview & Transactions */}
+          {(activeSection === 'overview' || activeSection === 'transactions') && (
+            <div className="bui-card px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrevMonth}
+                  className="bui-pill-control p-1.5"
+                  title="Mês anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="px-2 min-w-[130px] text-center">
+                  <span className="text-[10px] uppercase tracking-wider text-[var(--bui-text-muted)] block font-semibold">
+                    Competência
+                  </span>
+                  <span className="text-xs font-bold text-[var(--bui-text-primary)]">
+                    {isAllPeriods ? 'Todo o Histórico' : selectedMonthLabel}
+                  </span>
+                </div>
+                <button
+                  onClick={handleNextMonth}
+                  className="bui-pill-control p-1.5"
+                  title="Próximo mês"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const now = new Date()
+                    setMonthCursor(now)
+                    applyMonthBoundsToFilters(now)
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                    !isAllPeriods && summary?.is_current_month
+                      ? 'bg-[var(--bui-accent-blue)] text-white'
+                      : 'bui-pill-control'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Mês Atual</span>
+                </button>
+                <button
+                  onClick={handleToggleAllPeriods}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    isAllPeriods ? 'bui-badge-blue' : 'bui-pill-control'
+                  }`}
+                >
+                  {isAllPeriods ? 'Mostrando Todo Histórico' : 'Todo o Histórico'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Top KPI Row is visible on Overview, Accounts, and Transactions */}
           {activeSection !== 'hitl' && (
             <KPICards
               summary={summary}
               projection={projection}
               monthlyBudgetLimit={monthlyBudgetLimit}
+              selectedMonthLabel={selectedMonthLabel}
+              isAllPeriods={isAllPeriods}
               isPrivacyMode={isPrivacyMode}
               isLoading={isLoading}
               onInspectInvoices={() => setActiveSection('accounts')}
@@ -455,7 +516,9 @@ export const App: React.FC = () => {
                 accounts={accounts}
                 categories={categories}
                 isPrivacyMode={isPrivacyMode}
+                selectedMonthCursor={isAllPeriods ? undefined : monthCursor}
                 onInlineCategoryChange={handleInlineCategoryChange}
+                onRefresh={handleRefresh}
               />
             </>
           )}

@@ -84,6 +84,12 @@ func (i *CreditCardInvoice) MarkAsPaid() {
 	i.UpdatedAt = time.Now().UTC()
 }
 
+// MarkAsOpen marks the invoice as open and updates the timestamp.
+func (i *CreditCardInvoice) MarkAsOpen() {
+	i.Status = InvoiceStatusOpen
+	i.UpdatedAt = time.Now().UTC()
+}
+
 // CloseInvoice marks an open invoice as closed.
 func (i *CreditCardInvoice) CloseInvoice() {
 	if i.Status == InvoiceStatusOpen {

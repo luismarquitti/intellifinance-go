@@ -207,10 +207,13 @@ func (r *BatchUpdateCategoryRequest) Validate() []problem.InvalidParam {
 
 // TransactionSummaryResponse defines KPI summary card values.
 type TransactionSummaryResponse struct {
-	TotalIncome  string `json:"total_income"`
-	TotalExpense string `json:"total_expense"`
-	NetBalance   string `json:"net_balance"`
-	Count        int64  `json:"count"`
+	InitialBalance string `json:"initial_balance"`
+	TotalIncome    string `json:"total_income"`
+	TotalExpense   string `json:"total_expense"`
+	NetBalance     string `json:"net_balance"`
+	FinalBalance   string `json:"final_balance"`
+	IsCurrentMonth bool   `json:"is_current_month"`
+	Count          int64  `json:"count"`
 }
 
 // CSVIngestResponse defines response for CSV upload.

@@ -52,6 +52,32 @@ func (m *mockInvoiceService) GetCashflowProjection(ctx context.Context, tenantID
 	return m.projection, nil
 }
 
+func (m *mockInvoiceService) PayInvoice(ctx context.Context, tenantID, userID, invoiceID uuid.UUID, accountID *uuid.UUID, paidAt *time.Time) (*domain.CreditCardInvoice, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, inv := range m.invoices {
+		if inv.ID == invoiceID {
+			inv.MarkAsPaid()
+			return inv, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (m *mockInvoiceService) UnpayInvoice(ctx context.Context, tenantID, invoiceID uuid.UUID) (*domain.CreditCardInvoice, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, inv := range m.invoices {
+		if inv.ID == invoiceID {
+			inv.MarkAsOpen()
+			return inv, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
 func TestInvoiceHandler_Endpoints(t *testing.T) {
 	tenantID := uuid.New()
 	accountID := uuid.New()
@@ -87,6 +113,8 @@ func TestInvoiceHandler_Endpoints(t *testing.T) {
 	})
 	r.Get("/invoices", handler.ListInvoices)
 	r.Get("/invoices/{id}", handler.GetInvoice)
+	r.Post("/invoices/{id}/pay", handler.PayInvoice)
+	r.Post("/invoices/{id}/unpay", handler.UnpayInvoice)
 	r.Get("/cashflow/projection", handler.GetCashflowProjection)
 
 	// 1. Test ListInvoices
@@ -136,5 +164,26 @@ func TestInvoiceHandler_Endpoints(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &proj))
 		assert.True(t, proj.AvailableBalance.Equal(decimal.NewFromInt(3000)))
 		assert.True(t, proj.ProjectedNet.Equal(decimal.NewFromInt(1750)))
+	})
+
+	// 4. Test PayInvoice & UnpayInvoice
+	t.Run("PayAndUnpayInvoice", func(t *testing.T) {
+		payReq := httptest.NewRequest("POST", "/invoices/"+invoiceID.String()+"/pay", nil)
+		payRec := httptest.NewRecorder()
+		r.ServeHTTP(payRec, payReq)
+		assert.Equal(t, http.StatusOK, payRec.Code)
+
+		var paidInv domain.CreditCardInvoice
+		require.NoError(t, json.Unmarshal(payRec.Body.Bytes(), &paidInv))
+		assert.Equal(t, domain.InvoiceStatusPaid, paidInv.Status)
+
+		unpayReq := httptest.NewRequest("POST", "/invoices/"+invoiceID.String()+"/unpay", nil)
+		unpayRec := httptest.NewRecorder()
+		r.ServeHTTP(unpayRec, unpayReq)
+		assert.Equal(t, http.StatusOK, unpayRec.Code)
+
+		var openInv domain.CreditCardInvoice
+		require.NoError(t, json.Unmarshal(unpayRec.Body.Bytes(), &openInv))
+		assert.Equal(t, domain.InvoiceStatusOpen, openInv.Status)
 	})
 }

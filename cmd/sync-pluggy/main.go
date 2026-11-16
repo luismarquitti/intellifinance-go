@@ -18,6 +18,7 @@ import (
 	"github.com/luismarquitti/intellifinance-go/internal/config"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
 	"github.com/luismarquitti/intellifinance-go/internal/ports"
+	"github.com/shopspring/decimal"
 )
 
 func main() {
@@ -126,6 +127,9 @@ func main() {
 		accountMap[acc.Name] = acc
 	}
 
+	var creditCardIDs []uuid.UUID
+	cardPaymentsByAccount := make(map[uuid.UUID][]ports.ExternalTransaction)
+
 	for _, extAcc := range extAccounts {
 		accName := fmt.Sprintf("Pluggy %s", extAcc.Name)
 		var internalAcc *domain.Account
@@ -178,23 +182,61 @@ func main() {
 		// 3. If credit card, fetch bills
 		var bills []ports.ExternalBill
 		billIDMap := make(map[string]uuid.UUID)
+		billByMonthMap := make(map[string]*domain.CreditCardInvoice)
+		closingDay := 8
+		dueDay := 15
 		if extAcc.Type == ports.ExternalAccountCreditCard {
+			// Preload existing invoices for this card so we preserve manual/reconciled PAID status & metadata
+			existingInvs, _ := invRepo.ListByAccount(ctx, tenantID, internalAcc.ID)
+			existingByExtID := make(map[string]*domain.CreditCardInvoice)
+			for _, ei := range existingInvs {
+				if ei.ExternalID != nil && *ei.ExternalID != "" {
+					existingByExtID[*ei.ExternalID] = ei
+				}
+				billByMonthMap[ei.DueDate.Format("2006-01")] = ei
+			}
+
 			var bErr error
 			bills, bErr = pluggyClient.FetchBills(ctx, extAcc.ID)
 			if bErr == nil && len(bills) > 0 {
 				logger.Info(fmt.Sprintf("fetched %d bills for credit card %s", len(bills), internalAcc.Name))
+				if bills[0].ClosingDate != nil {
+					closingDay = bills[0].ClosingDate.Day()
+				}
+				dueDay = bills[0].DueDate.Day()
+
 				for _, b := range bills {
 					invStatus := domain.InvoiceStatusOpen
-					if strings.ToUpper(b.Status) == "CLOSED" {
+					switch strings.ToUpper(b.Status) {
+					case "CLOSED":
 						invStatus = domain.InvoiceStatusClosed
-					} else if strings.ToUpper(b.Status) == "PAID" {
+					case "PAID":
 						invStatus = domain.InvoiceStatusPaid
+					case "OVERDUE":
+						invStatus = domain.InvoiceStatusOverdue
+					}
+					if b.PaymentsCount > 0 {
+						invStatus = domain.InvoiceStatusPaid
+					}
+
+					var existingInv *domain.CreditCardInvoice
+					if ei, ok := existingByExtID[b.ID]; ok {
+						existingInv = ei
+					} else if ei, ok := billByMonthMap[b.DueDate.Format("2006-01")]; ok {
+						existingInv = ei
 					}
 
 					inv, iErr := domain.NewCreditCardInvoice(
 						tenantID, internalAcc.ID, b.DueDate, b.TotalAmount, invStatus,
 					)
 					if iErr == nil {
+						if existingInv != nil {
+							inv.ID = existingInv.ID
+							inv.Metadata = existingInv.Metadata
+							if existingInv.Status == domain.InvoiceStatusPaid {
+								inv.Status = domain.InvoiceStatusPaid
+							}
+						}
 						inv.ExternalID = &b.ID
 						inv.ClosingDate = b.ClosingDate
 						if b.MinimumPaymentAmount != nil {
@@ -204,14 +246,16 @@ func main() {
 						if err := invRepo.Save(ctx, inv); err != nil {
 							logger.Warn("failed saving credit card invoice", "err", err, "bill_id", b.ID)
 						} else {
-							logger.Info("saved credit card invoice", "bill_id", b.ID, "due_date", b.DueDate.Format("2006-01-02"), "total", b.TotalAmount.StringFixed(2))
+							logger.Info("saved credit card invoice", "bill_id", b.ID, "due_date", b.DueDate.Format("2006-01-02"), "total", b.TotalAmount.StringFixed(2), "status", inv.Status)
 						}
 
 						savedInv, findErr := invRepo.FindByExternalID(ctx, tenantID, b.ID)
 						if findErr == nil && savedInv != nil {
 							billIDMap[b.ID] = savedInv.ID
+							billByMonthMap[savedInv.DueDate.Format("2006-01")] = savedInv
 						} else {
 							billIDMap[b.ID] = inv.ID
+							billByMonthMap[inv.DueDate.Format("2006-01")] = inv
 						}
 					}
 				}
@@ -229,26 +273,87 @@ func main() {
 
 		createdCount := 0
 		duplicateCount := 0
+		syntheticInvoiceTotals := make(map[uuid.UUID]decimal.Decimal)
+		var cardPayments []ports.ExternalTransaction
 
 		for _, tx := range extTxs {
+			txAmount := tx.Amount
 			txType := domain.TransactionTypeExpense
-			if tx.Amount.IsPositive() {
+			isBillPayment := false
+
+			if extAcc.Type == ports.ExternalAccountCreditCard {
+				// Pluggy credit card convention: purchases are positive, bill payments/refunds are negative
+				if strings.EqualFold(strings.TrimSpace(tx.Description), "Pagamento recebido") ||
+					strings.EqualFold(strings.TrimSpace(tx.CategoryHint), "Credit card payment") {
+					txType = domain.TransactionTypeTransfer
+					txAmount = tx.Amount.Abs()
+					isBillPayment = true
+					cardPayments = append(cardPayments, tx)
+				} else if tx.Amount.IsPositive() {
+					txType = domain.TransactionTypeExpense
+					txAmount = tx.Amount.Neg()
+				} else {
+					txType = domain.TransactionTypeIncome
+					txAmount = tx.Amount.Abs()
+				}
+			} else if tx.Amount.IsPositive() {
 				txType = domain.TransactionTypeIncome
 			}
 
 			var internalBillID *uuid.UUID
-			if tx.BillID != "" {
-				if bUUID, ok := billIDMap[tx.BillID]; ok {
-					internalBillID = &bUUID
-				}
-			} else if extAcc.Type == ports.ExternalAccountCreditCard && len(bills) > 0 {
-				// Fallback to active open invoice for credit card purchases without explicit billId
-				for _, b := range bills {
-					if bUUID, ok := billIDMap[b.ID]; ok {
+			if extAcc.Type == ports.ExternalAccountCreditCard && !isBillPayment {
+				if tx.BillID != "" {
+					if bUUID, ok := billIDMap[tx.BillID]; ok {
 						internalBillID = &bUUID
-						break
 					}
 				}
+				if internalBillID == nil {
+					// Determine target monthly billing cycle based on closing day
+					txDateBr := tx.Date.In(domain.BrazilLocation)
+					targetMonth := time.Date(txDateBr.Year(), txDateBr.Month(), 1, 0, 0, 0, 0, time.UTC)
+					if txDateBr.Day() >= closingDay {
+						targetMonth = targetMonth.AddDate(0, 1, 0)
+					}
+					ymKey := targetMonth.Format("2006-01")
+					if existingCycleInv, ok := billByMonthMap[ymKey]; ok {
+						internalBillID = &existingCycleInv.ID
+						if existingCycleInv.ExternalID == nil {
+							syntheticInvoiceTotals[existingCycleInv.ID] = syntheticInvoiceTotals[existingCycleInv.ID].Add(txAmount.Neg())
+						}
+					} else {
+						lastDayOfMonth := targetMonth.AddDate(0, 1, -1).Day()
+						dDay := dueDay
+						if dDay > lastDayOfMonth {
+							dDay = lastDayOfMonth
+						}
+						cDay := closingDay
+						if cDay > lastDayOfMonth {
+							cDay = lastDayOfMonth
+						}
+						targetDue := time.Date(targetMonth.Year(), targetMonth.Month(), dDay, 0, 0, 0, 0, time.UTC)
+						targetClosing := time.Date(targetMonth.Year(), targetMonth.Month(), cDay, 0, 0, 0, 0, time.UTC)
+						newInv, invErr := domain.NewCreditCardInvoice(tenantID, internalAcc.ID, targetDue, decimal.Zero, domain.InvoiceStatusOpen)
+						if invErr == nil {
+							newInv.ClosingDate = &targetClosing
+							if saveErr := invRepo.Save(ctx, newInv); saveErr == nil {
+								billByMonthMap[ymKey] = newInv
+								internalBillID = &newInv.ID
+								syntheticInvoiceTotals[newInv.ID] = syntheticInvoiceTotals[newInv.ID].Add(txAmount.Neg())
+							}
+						}
+					}
+				}
+			}
+
+			txMeta := map[string]any{
+				"provider":         "PLUGGY",
+				"payment_method":   tx.PaymentMethod,
+				"category_hint":    tx.CategoryHint,
+				"installment_no":   tx.InstallmentNumber,
+				"installments_tot": tx.TotalInstallments,
+			}
+			if isBillPayment {
+				txMeta["is_bill_payment"] = true
 			}
 
 			newTx, txErr := domain.NewTransaction(domain.NewTransactionParams{
@@ -257,7 +362,7 @@ func main() {
 				CreatedByUserID: &userID,
 				TransactedAt:    tx.Date,
 				Date:            tx.Date,
-				Amount:          tx.Amount,
+				Amount:          txAmount,
 				Description:     tx.Description,
 				Type:            txType,
 				Status:          domain.TransactionStatusCompleted,
@@ -265,13 +370,7 @@ func main() {
 				Source:          domain.SourceTypePluggy,
 				ExternalID:      tx.ID,
 				BillID:          internalBillID,
-				Metadata: map[string]any{
-					"provider":         "PLUGGY",
-					"payment_method":   tx.PaymentMethod,
-					"category_hint":    tx.CategoryHint,
-					"installment_no":   tx.InstallmentNumber,
-					"installments_tot": tx.TotalInstallments,
-				},
+				Metadata:        txMeta,
 			})
 			if txErr != nil {
 				continue
@@ -301,11 +400,50 @@ func main() {
 			createdCount++
 		}
 
+		// Update totals on synthetic future invoices without external_id
+		for synID, totalAmt := range syntheticInvoiceTotals {
+			if synInv, fErr := invRepo.FindByID(ctx, tenantID, synID); fErr == nil && synInv != nil && synInv.ExternalID == nil {
+				synInv.TotalAmount = totalAmt.Round(2)
+				_ = invRepo.Save(ctx, synInv)
+			}
+		}
+
+		// Reconcile paid status after all accounts & transactions are synced
+		if extAcc.Type == ports.ExternalAccountCreditCard {
+			creditCardIDs = append(creditCardIDs, internalAcc.ID)
+			cardPaymentsByAccount[internalAcc.ID] = cardPayments
+		} else {
+			// Anchor liquid account balance to Pluggy's reported balance (adjusting for post-today scheduled transactions)
+			nowDateStr := time.Now().In(domain.BrazilLocation).Format("2006-01-02")
+			futureDelta := decimal.Zero
+			for _, tx := range extTxs {
+				if domain.StandardizeDateToBrazil(tx.Date) > nowDateStr {
+					futureDelta = futureDelta.Add(tx.Amount)
+				}
+			}
+			targetBal := extAcc.Balance.Add(futureDelta).Round(2)
+			if currentAcc, gErr := accountRepo.GetByID(ctx, tenantID, internalAcc.ID); gErr == nil && currentAcc != nil {
+				if !currentAcc.Balance.Equal(targetBal) {
+					delta := targetBal.Sub(currentAcc.Balance)
+					if uErr := accountRepo.UpdateBalance(ctx, tenantID, internalAcc.ID, delta); uErr != nil {
+						logger.Warn("failed anchoring liquid account balance", "account", internalAcc.Name, "err", uErr)
+					} else {
+						logger.Info("anchored liquid account balance", "account", internalAcc.Name, "balance", targetBal.StringFixed(2))
+					}
+				}
+			}
+		}
+
 		logger.Info("transactions sync summary",
 			"account", internalAcc.Name,
 			"created", createdCount,
 			"duplicates_skipped", duplicateCount,
 		)
+	}
+
+	// 4b. Reconcile paid status for all synced credit card accounts against checking debits and card payments
+	for _, cardID := range creditCardIDs {
+		reconcileCardInvoicesPaid(ctx, tenantID, cardID, cardPaymentsByAccount[cardID], accountRepo, txRepo, invRepo, logger)
 	}
 
 	// 5. Automatic Transfer & Bill Payment Reconciliation Scan
@@ -345,4 +483,117 @@ func main() {
 	}
 
 	logger.Info("Open Finance sync completed successfully!")
+}
+
+func reconcileCardInvoicesPaid(
+	ctx context.Context,
+	tenantID, cardAccountID uuid.UUID,
+	cardPayments []ports.ExternalTransaction,
+	accountRepo ports.AccountRepository,
+	txRepo ports.TransactionRepository,
+	invRepo ports.InvoiceRepository,
+	logger *slog.Logger,
+) {
+	allAccounts, err := accountRepo.List(ctx, tenantID, ports.AccountFilter{})
+	if err != nil {
+		return
+	}
+
+	var checkingAccounts []*domain.Account
+	checkingTxs := make(map[uuid.UUID][]*domain.Transaction)
+	for _, acc := range allAccounts {
+		if acc.Type == domain.AccountTypeChecking && acc.IsActive && !acc.IsDeleted() {
+			checkingAccounts = append(checkingAccounts, acc)
+			txs, _, listErr := txRepo.List(ctx, tenantID, ports.TransactionFilter{AccountID: &acc.ID, Limit: 1000})
+			if listErr == nil {
+				checkingTxs[acc.ID] = txs
+			}
+		}
+	}
+
+	invoices, err := invRepo.ListByAccount(ctx, tenantID, cardAccountID)
+	if err != nil {
+		return
+	}
+
+	unpaidSum := decimal.Zero
+	for _, inv := range invoices {
+		if inv.Status != domain.InvoiceStatusPaid {
+			var matchedCheckingAcc *domain.Account
+			var matchedCheckingTx *domain.Transaction
+
+			// 1. Match exact checking debit near due date
+			for _, chk := range checkingAccounts {
+				for _, tx := range checkingTxs[chk.ID] {
+					if tx.Status == domain.TransactionStatusVoid || !tx.Amount.IsNegative() {
+						continue
+					}
+					diffDays := tx.Date.Sub(inv.DueDate).Hours() / 24.0
+					if diffDays < -7 || diffDays > 15 {
+						continue
+					}
+					if tx.Amount.Abs().Equal(inv.TotalAmount) {
+						matchedCheckingAcc = chk
+						matchedCheckingTx = tx
+						upper := strings.ToUpper(tx.Description)
+						if strings.Contains(upper, "FATURA") || strings.Contains(upper, "ITAU BLACK") || strings.Contains(upper, "UNICLASS") {
+							break
+						}
+					}
+				}
+				if matchedCheckingTx != nil {
+					break
+				}
+			}
+
+			// 2. Fallback match against Pluggy card "Pagamento recebido" entries
+			hasCardPayment := false
+			var cardPayDate time.Time
+			for _, cp := range cardPayments {
+				if inv.ExternalID != nil && cp.BillID == *inv.ExternalID {
+					hasCardPayment = true
+					cardPayDate = cp.Date
+					break
+				}
+				diffDays := cp.Date.Sub(inv.DueDate).Hours() / 24.0
+				if diffDays >= -7 && diffDays <= 15 && cp.Amount.Abs().Equal(inv.TotalAmount) {
+					hasCardPayment = true
+					cardPayDate = cp.Date
+					break
+				}
+			}
+
+			if matchedCheckingTx != nil || hasCardPayment {
+				if inv.Metadata == nil {
+					inv.Metadata = make(map[string]any)
+				}
+				if matchedCheckingTx != nil && matchedCheckingAcc != nil {
+					inv.Metadata["payment_transaction_id"] = matchedCheckingTx.ID.String()
+					inv.Metadata["payment_account_id"] = matchedCheckingAcc.ID.String()
+					inv.Metadata["payment_account_name"] = matchedCheckingAcc.Name
+					inv.Metadata["paid_at"] = matchedCheckingTx.Date.Format("2006-01-02")
+				} else if !cardPayDate.IsZero() {
+					inv.Metadata["paid_at"] = cardPayDate.Format("2006-01-02")
+				}
+				inv.Metadata["paid_amount"] = inv.TotalAmount.StringFixed(2)
+				inv.MarkAsPaid()
+				if saveErr := invRepo.Save(ctx, inv); saveErr != nil {
+					logger.Warn("failed marking synced invoice paid", "invoice_id", inv.ID, "err", saveErr)
+				} else {
+					logger.Info("reconciled credit card invoice as PAID", "due_date", inv.DueDate.Format("2006-01-02"), "total", inv.TotalAmount.StringFixed(2))
+				}
+			}
+		}
+
+		if inv.Status != domain.InvoiceStatusPaid {
+			unpaidSum = unpaidSum.Add(inv.TotalAmount)
+		}
+	}
+
+	if cardAcc, getErr := accountRepo.GetByID(ctx, tenantID, cardAccountID); getErr == nil && cardAcc != nil {
+		targetCardBal := unpaidSum.Neg().Round(2)
+		if !cardAcc.Balance.Equal(targetCardBal) {
+			_ = accountRepo.UpdateBalance(ctx, tenantID, cardAccountID, targetCardBal.Sub(cardAcc.Balance))
+		}
+	}
 }

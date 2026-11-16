@@ -113,6 +113,23 @@ func setupMockPluggyServer(t *testing.T) *httptest.Server {
 						"status":               "OPEN",
 						"allowsInstallments":   true,
 					},
+					{
+						"id":                   "bill-oct-2026",
+						"dueDate":              "2026-10-20T00:00:00Z",
+						"billClosingDate":      "2026-10-13T00:00:00Z",
+						"totalAmount":          600.00,
+						"minimumPaymentAmount": 90.00,
+						"allowsInstallments":   false,
+						"payments": []map[string]any{
+							{
+								"id":          "pay-1",
+								"valueType":   "FULL_PAYMENT",
+								"paymentDate": "2026-10-20T00:00:00Z",
+								"paymentMode": "DEBIT_ACCOUNT",
+								"amount":      600.00,
+							},
+						},
+					},
 				},
 			})
 
@@ -171,11 +188,15 @@ func TestPluggyClient_FullLifecycle(t *testing.T) {
 	// 5. Fetch bills
 	bills, err := client.FetchBills(ctx, "acc-credit-2")
 	require.NoError(t, err)
-	require.Len(t, bills, 1)
+	require.Len(t, bills, 2)
 	require.Equal(t, "bill-nov-2026", bills[0].ID)
 	require.Equal(t, "OPEN", bills[0].Status)
 	require.True(t, decimal.NewFromFloat(850.50).Equal(bills[0].TotalAmount))
 	require.True(t, bills[0].AllowsInstallments)
+	require.Equal(t, "bill-oct-2026", bills[1].ID)
+	require.Equal(t, "PAID", bills[1].Status)
+	require.Equal(t, 1, bills[1].PaymentsCount)
+	require.True(t, decimal.NewFromFloat(600.00).Equal(bills[1].PaidAmount))
 
 	// 6. Trigger sync
 	require.NoError(t, client.TriggerSync(ctx, "item-123"))

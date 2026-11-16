@@ -59,6 +59,8 @@ type ExternalBill struct {
 	MinimumPaymentAmount *decimal.Decimal `json:"minimum_payment_amount,omitempty"`
 	Status               string           `json:"status"` // OPEN, CLOSED, OVERDUE, PAID
 	AllowsInstallments   bool             `json:"allows_installments"`
+	PaymentsCount        int              `json:"payments_count,omitempty"`
+	PaidAmount           decimal.Decimal  `json:"paid_amount,omitempty"`
 }
 
 // ItemStatus represents the synchronization health and lifecycle state of a bank connection.

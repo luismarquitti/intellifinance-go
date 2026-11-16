@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
@@ -22,4 +23,6 @@ type InvoiceService interface {
 	ListInvoices(ctx context.Context, tenantID uuid.UUID, accountID *uuid.UUID) ([]*domain.CreditCardInvoice, error)
 	GetInvoiceDetails(ctx context.Context, tenantID, invoiceID uuid.UUID) (*domain.CreditCardInvoice, []*domain.Transaction, error)
 	GetCashflowProjection(ctx context.Context, tenantID uuid.UUID) (*CashflowProjection, error)
+	PayInvoice(ctx context.Context, tenantID, userID, invoiceID uuid.UUID, accountID *uuid.UUID, paidAt *time.Time) (*domain.CreditCardInvoice, error)
+	UnpayInvoice(ctx context.Context, tenantID, invoiceID uuid.UUID) (*domain.CreditCardInvoice, error)
 }

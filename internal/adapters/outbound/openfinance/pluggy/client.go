@@ -399,6 +399,13 @@ func (c *Client) FetchBills(ctx context.Context, accountID string) ([]ports.Exte
 			MinimumPaymentAmount *float64   `json:"minimumPaymentAmount"`
 			Status               string     `json:"status"`
 			AllowsInstallments   bool       `json:"allowsInstallments"`
+			Payments             []struct {
+				ID          string    `json:"id"`
+				ValueType   string    `json:"valueType"`
+				PaymentDate time.Time `json:"paymentDate"`
+				PaymentMode string    `json:"paymentMode"`
+				Amount      float64   `json:"amount"`
+			} `json:"payments"`
 		} `json:"results"`
 	}
 
@@ -406,15 +413,34 @@ func (c *Client) FetchBills(ctx context.Context, accountID string) ([]ports.Exte
 		return nil, fmt.Errorf("failed decoding bills response: %w", err)
 	}
 
+	now := time.Now().UTC()
 	var bills []ports.ExternalBill
 	for _, b := range res.Results {
+		paidAmount := decimal.Zero
+		for _, p := range b.Payments {
+			paidAmount = paidAmount.Add(decimal.NewFromFloat(p.Amount).Round(2))
+		}
+
+		status := strings.ToUpper(strings.TrimSpace(b.Status))
+		if status == "" {
+			if len(b.Payments) > 0 {
+				status = "PAID"
+			} else if b.BillClosingDate != nil && !b.BillClosingDate.After(now) {
+				status = "CLOSED"
+			} else {
+				status = "OPEN"
+			}
+		}
+
 		bill := ports.ExternalBill{
 			ID:                 b.ID,
 			DueDate:            b.DueDate,
 			ClosingDate:        b.BillClosingDate,
 			TotalAmount:        decimal.NewFromFloat(b.TotalAmount).Round(2),
-			Status:             strings.ToUpper(b.Status),
+			Status:             status,
 			AllowsInstallments: b.AllowsInstallments,
+			PaymentsCount:      len(b.Payments),
+			PaidAmount:         paidAmount,
 		}
 		if b.MinimumPaymentAmount != nil {
 			minDec := decimal.NewFromFloat(*b.MinimumPaymentAmount).Round(2)

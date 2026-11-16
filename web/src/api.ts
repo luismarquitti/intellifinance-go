@@ -193,6 +193,26 @@ export async function fetchInvoiceDetails(id: string): Promise<InvoiceDetailsRes
   return handleResponse<InvoiceDetailsResponse>(res)
 }
 
+export async function payInvoice(
+  id: string,
+  payload?: { account_id?: string; paid_at?: string }
+): Promise<Invoice> {
+  const res = await fetch(`${BASE_URL}/invoices/${id}/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  })
+  return handleResponse<Invoice>(res)
+}
+
+export async function unpayInvoice(id: string): Promise<Invoice> {
+  const res = await fetch(`${BASE_URL}/invoices/${id}/unpay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return handleResponse<Invoice>(res)
+}
+
 export async function fetchPendingActions(): Promise<PendingAction[]> {
   const res = await fetch(`${BASE_URL}/pending-actions`)
   const data = await handleResponse<PendingAction[]>(res)

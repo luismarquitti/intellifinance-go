@@ -154,9 +154,88 @@ func TestInvoiceService_GetInvoiceDetails(t *testing.T) {
 	})
 	_ = txRepo.Create(ctx, tx)
 
+	// Bill settlement transaction linked to the same bill_id should be filtered out of invoice details
+	settlementTx, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       ccAcc.ID,
+		CreatedByUserID: &userID,
+		Amount:          decimal.NewFromInt(500),
+		Description:     "Pagamento recebido",
+		Type:            domain.TransactionTypeTransfer,
+		BillID:          &inv.ID,
+		Metadata:        map[string]any{"is_bill_payment": true},
+	})
+	_ = txRepo.Create(ctx, settlementTx)
+
 	retrievedInv, txs, err := service.GetInvoiceDetails(ctx, tenantID, inv.ID)
 	require.NoError(t, err)
 	assert.Equal(t, inv.ID, retrievedInv.ID)
 	assert.Len(t, txs, 1)
 	assert.Equal(t, "iFood", txs[0].Description)
+}
+
+func TestInvoiceService_PayAndUnpayInvoice(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	userID := uuid.New()
+
+	accRepo := newMockAccountRepo()
+	txRepo := newMockTxRepo(accRepo)
+	invRepo := newMockInvoiceRepo()
+
+	service := app.NewInvoiceService(invRepo, txRepo, accRepo)
+
+	checkingAcc, _ := domain.NewAccount(tenantID, userID, "Conta Corrente", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
+	checkingAcc.Balance = decimal.NewFromInt(2000)
+	_ = accRepo.Create(ctx, checkingAcc)
+
+	ccAcc, _ := domain.NewAccount(tenantID, userID, "Cartão Black", domain.AccountTypeCreditCard, "BRL", domain.VisibilityShared)
+	_ = accRepo.Create(ctx, ccAcc)
+
+	dueDate := time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC)
+	inv1, _ := domain.NewCreditCardInvoice(tenantID, ccAcc.ID, dueDate, decimal.NewFromInt(600), domain.InvoiceStatusClosed)
+	_ = invRepo.Save(ctx, inv1)
+
+	// 1. Pay inv1 when no checking debit exists -> creates manual debit on checking account
+	paid1, err := service.PayInvoice(ctx, tenantID, userID, inv1.ID, &checkingAcc.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, domain.InvoiceStatusPaid, paid1.Status)
+	assert.Equal(t, checkingAcc.ID.String(), paid1.Metadata["payment_account_id"])
+	assert.NotEmpty(t, paid1.Metadata["auto_created_payment_tx_id"])
+	updatedAcc, _ := accRepo.GetByID(ctx, tenantID, checkingAcc.ID)
+	assert.Equal(t, "1400.00", updatedAcc.Balance.StringFixed(2))
+
+	// 2. Unpay inv1 -> deletes auto-created transaction and restores checking balance
+	reopened, err := service.UnpayInvoice(ctx, tenantID, inv1.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.InvoiceStatusOpen, reopened.Status)
+	_, hasAuto := reopened.Metadata["auto_created_payment_tx_id"]
+	assert.False(t, hasAuto)
+	restoredAcc, _ := accRepo.GetByID(ctx, tenantID, checkingAcc.ID)
+	assert.Equal(t, "2000.00", restoredAcc.Balance.StringFixed(2))
+
+	// 3. Pay inv2 when a Pluggy checking debit already exists -> links existing tx without double debiting
+	inv2, _ := domain.NewCreditCardInvoice(tenantID, ccAcc.ID, dueDate.AddDate(0, -1, 0), decimal.NewFromInt(450), domain.InvoiceStatusClosed)
+	_ = invRepo.Save(ctx, inv2)
+
+	existingDebit, _ := domain.NewTransaction(domain.NewTransactionParams{
+		TenantID:        tenantID,
+		AccountID:       checkingAcc.ID,
+		CreatedByUserID: &userID,
+		Date:            dueDate.AddDate(0, -1, 0),
+		Amount:          decimal.NewFromInt(-450),
+		Description:     "Débito automático Itau Black",
+		Type:            domain.TransactionTypeExpense,
+		Source:          domain.SourceTypePluggy,
+	})
+	_ = txRepo.Create(ctx, existingDebit) // checking balance is now 1550.00
+
+	paid2, err := service.PayInvoice(ctx, tenantID, userID, inv2.ID, &checkingAcc.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, domain.InvoiceStatusPaid, paid2.Status)
+	assert.Equal(t, existingDebit.ID.String(), paid2.Metadata["payment_transaction_id"])
+	_, hasAuto2 := paid2.Metadata["auto_created_payment_tx_id"]
+	assert.False(t, hasAuto2)
+	accAfter2, _ := accRepo.GetByID(ctx, tenantID, checkingAcc.ID)
+	assert.Equal(t, "1550.00", accAfter2.Balance.StringFixed(2))
 }

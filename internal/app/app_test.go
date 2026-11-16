@@ -105,9 +105,12 @@ func (m *mockTxRepo) List(ctx context.Context, tenantID uuid.UUID, filter ports.
 }
 func (m *mockTxRepo) Summarize(ctx context.Context, tenantID uuid.UUID, filter ports.TransactionFilter) (*ports.TransactionSummary, error) {
 	summary := &ports.TransactionSummary{
-		TotalIncome:  decimal.Zero,
-		TotalExpense: decimal.Zero,
-		NetBalance:   decimal.Zero,
+		InitialBalance: decimal.Zero,
+		TotalIncome:    decimal.Zero,
+		TotalExpense:   decimal.Zero,
+		NetBalance:     decimal.Zero,
+		FinalBalance:   decimal.Zero,
+		IsCurrentMonth: true,
 	}
 	for _, tx := range m.txs {
 		if tx.TenantID != tenantID {
@@ -123,6 +126,7 @@ func (m *mockTxRepo) Summarize(ctx context.Context, tenantID uuid.UUID, filter p
 			summary.NetBalance = summary.NetBalance.Add(tx.Amount)
 		}
 	}
+	summary.FinalBalance = summary.InitialBalance.Add(summary.NetBalance)
 	return summary, nil
 }
 func (m *mockTxRepo) Update(ctx context.Context, tx *domain.Transaction) error {

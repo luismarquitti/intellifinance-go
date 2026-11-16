@@ -362,7 +362,7 @@ func (r *TransactionRepository) List(ctx context.Context, tenantID uuid.UUID, fi
 	return items, total, nil
 }
 
-// Summarize aggregates KPI metrics matching the filter criteria.
+// Summarize aggregates KPI metrics matching the filter criteria, including initial and final period balances.
 func (r *TransactionRepository) Summarize(ctx context.Context, tenantID uuid.UUID, filter ports.TransactionFilter) (*ports.TransactionSummary, error) {
 	if r.tx == nil {
 		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
@@ -376,11 +376,22 @@ func (r *TransactionRepository) Summarize(ctx context.Context, tenantID uuid.UUI
 		}
 	}
 
-	q := r.getQueries(ctx)
+	dbtx := r.getDB(ctx)
 
-	var txType db.NullTransactionType
-	if filter.Type != nil {
-		txType = db.NullTransactionType{TransactionType: db.TransactionType(*filter.Type), Valid: true}
+	scopeLiquidOnly := false
+	if filter.AccountID == nil {
+		var liquidCount int64
+		const liquidCountSQL = `
+			SELECT COUNT(*)::bigint
+			FROM accounts
+			WHERE tenant_id = $1
+			  AND type <> 'CREDIT_CARD'
+			  AND is_active = TRUE
+			  AND deleted_at IS NULL;`
+		if err := dbtx.QueryRow(ctx, liquidCountSQL, tenantID).Scan(&liquidCount); err != nil {
+			return nil, fmt.Errorf("failed to count liquid accounts: %w", err)
+		}
+		scopeLiquidOnly = liquidCount > 0
 	}
 
 	var fromDate, toDate pgtype.Date
@@ -391,31 +402,129 @@ func (r *TransactionRepository) Summarize(ctx context.Context, tenantID uuid.UUI
 		toDate = pgtype.Date{Time: *filter.ToDate, Valid: true}
 	}
 
+	var currentBalance, deltaFromStart decimal.Decimal
+	const balanceAnchorSQL = `
+		WITH target_accounts AS (
+			SELECT id, balance
+			FROM accounts
+			WHERE tenant_id = $1
+			  AND deleted_at IS NULL
+			  AND (
+				  ($2::uuid IS NOT NULL AND id = $2::uuid)
+				  OR ($2::uuid IS NULL AND is_active = TRUE AND ($3::boolean = FALSE OR type <> 'CREDIT_CARD'))
+			  )
+		)
+		SELECT
+			COALESCE((SELECT SUM(balance) FROM target_accounts), 0)::numeric(15,2) AS current_balance,
+			COALESCE((
+				SELECT SUM(t.amount)
+				FROM transactions t
+				JOIN target_accounts ta ON ta.id = t.account_id
+				WHERE t.tenant_id = $1
+				  AND t.status IN ('COMPLETED', 'RECONCILED')
+				  AND ($4::date IS NULL OR t.date >= $4::date)
+			), 0)::numeric(15,2) AS delta_from_start;`
+
+	if err := dbtx.QueryRow(ctx, balanceAnchorSQL,
+		tenantID,
+		filter.AccountID,
+		scopeLiquidOnly,
+		fromDate,
+	).Scan(&currentBalance, &deltaFromStart); err != nil {
+		return nil, fmt.Errorf("failed to compute opening balance: %w", err)
+	}
+
+	initialBalance := currentBalance.Sub(deltaFromStart).Round(2)
+
+	var txType db.NullTransactionType
+	if filter.Type != nil {
+		txType = db.NullTransactionType{TransactionType: db.TransactionType(*filter.Type), Valid: true}
+	}
+
+	var txStatus db.NullTransactionStatus
+	if filter.Status != nil {
+		txStatus = db.NullTransactionStatus{TransactionStatus: db.TransactionStatus(*filter.Status), Valid: true}
+	}
+
 	var search *string
 	if strings.TrimSpace(filter.Search) != "" {
 		s := strings.TrimSpace(filter.Search)
 		search = &s
 	}
 
-	row, err := q.SummarizeTransactions(ctx, db.SummarizeTransactionsParams{
-		TenantID:        tenantID,
-		AccountID:       filter.AccountID,
-		CategoryID:      filter.CategoryID,
-		IsUncategorized: filter.Uncategorized,
-		Type:            txType,
-		FromDate:        fromDate,
-		ToDate:          toDate,
-		Search:          search,
-	})
-	if err != nil {
+	var totalIncome, totalExpense, netBalance decimal.Decimal
+	var count int64
+	const summarySQL = `
+		WITH target_accounts AS (
+			SELECT id
+			FROM accounts
+			WHERE tenant_id = $1
+			  AND deleted_at IS NULL
+			  AND (
+				  ($2::uuid IS NOT NULL AND id = $2::uuid)
+				  OR ($2::uuid IS NULL AND is_active = TRUE AND ($3::boolean = FALSE OR type <> 'CREDIT_CARD'))
+			  )
+		)
+		SELECT
+			COALESCE(SUM(CASE WHEN peer_ta.id IS NULL AND t.amount > 0 THEN t.amount ELSE 0 END), 0)::numeric(15,2) AS total_income,
+			COALESCE(SUM(CASE WHEN peer_ta.id IS NULL AND t.amount < 0 THEN ABS(t.amount) ELSE 0 END), 0)::numeric(15,2) AS total_expense,
+			COALESCE(SUM(CASE WHEN peer_ta.id IS NULL THEN t.amount ELSE 0 END), 0)::numeric(15,2) AS net_balance,
+			COUNT(*)::bigint AS count
+		FROM transactions t
+		JOIN target_accounts ta ON ta.id = t.account_id
+		LEFT JOIN transactions peer ON peer.id = t.transfer_peer_transaction_id AND peer.tenant_id = t.tenant_id
+		LEFT JOIN target_accounts peer_ta ON peer_ta.id = peer.account_id
+		WHERE t.tenant_id = $1
+		  AND (
+			  ($10::transaction_status IS NOT NULL AND t.status = $10::transaction_status)
+			  OR ($10::transaction_status IS NULL AND t.status IN ('COMPLETED', 'RECONCILED'))
+		  )
+		  AND ($4::uuid IS NULL OR t.category_id = $4::uuid)
+		  AND ($5::boolean IS NULL OR ($5::boolean = TRUE AND t.category_id IS NULL))
+		  AND ($6::transaction_type IS NULL OR t.type = $6::transaction_type)
+		  AND ($7::date IS NULL OR t.date >= $7::date)
+		  AND ($8::date IS NULL OR t.date <= $8::date)
+		  AND ($9::text IS NULL OR t.description ILIKE '%' || $9::text || '%' OR t.notes ILIKE '%' || $9::text || '%');`
+
+	if err := dbtx.QueryRow(ctx, summarySQL,
+		tenantID,
+		filter.AccountID,
+		scopeLiquidOnly,
+		filter.CategoryID,
+		filter.Uncategorized,
+		txType,
+		fromDate,
+		toDate,
+		search,
+		txStatus,
+	).Scan(&totalIncome, &totalExpense, &netBalance, &count); err != nil {
 		return nil, fmt.Errorf("failed to summarize transactions: %w", err)
 	}
 
+	var finalBalance decimal.Decimal
+	hasSubLedgerFilter := filter.CategoryID != nil || filter.Uncategorized != nil || filter.Type != nil || search != nil || filter.Status != nil
+	if !hasSubLedgerFilter {
+		finalBalance = initialBalance.Add(totalIncome).Sub(totalExpense).Round(2)
+	} else {
+		finalBalance = initialBalance.Add(netBalance).Round(2)
+	}
+
+	nowBrazil := time.Now().In(domain.BrazilLocation)
+	isCurrentMonth := false
+	if filter.FromDate == nil && filter.ToDate == nil {
+		isCurrentMonth = true
+	} else if filter.FromDate != nil && filter.ToDate != nil {
+		isCurrentMonth = filter.FromDate.Year() == nowBrazil.Year() && filter.FromDate.Month() == nowBrazil.Month()
+	}
+
 	return &ports.TransactionSummary{
-		TotalIncome:  row.TotalIncome,
-		TotalExpense: row.TotalExpense,
-		NetBalance:   row.NetBalance,
-		Count:        row.Count,
+		InitialBalance: initialBalance,
+		TotalIncome:    totalIncome.Round(2),
+		TotalExpense:   totalExpense.Round(2),
+		NetBalance:     netBalance.Round(2),
+		FinalBalance:   finalBalance,
+		IsCurrentMonth: isCurrentMonth,
+		Count:          count,
 	}, nil
 }
 

@@ -195,6 +195,8 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			sub.Route("/invoices", func(r chi.Router) {
 				r.Get("/", invoiceHandler.ListInvoices)
 				r.Get("/{id}", invoiceHandler.GetInvoice)
+				r.Post("/{id}/pay", invoiceHandler.PayInvoice)
+				r.Post("/{id}/unpay", invoiceHandler.UnpayInvoice)
 			})
 			sub.Get("/cashflow/projection", invoiceHandler.GetCashflowProjection)
 		}
