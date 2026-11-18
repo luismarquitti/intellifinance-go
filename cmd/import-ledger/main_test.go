@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -39,14 +40,23 @@ func TestCanonicalCommandRejectsSymlinkArchiveBeforeDatabase(t *testing.T) {
 	require.NoError(t, os.Mkdir(checkout, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(checkout, ".git"), []byte("gitdir: synthetic"), 0600))
 	link := filepath.Join(base, "link")
-	require.NoError(t, os.Symlink(checkout, link))
+	archiveDir := filepath.Join(checkout, "archive")
+	if symErr := os.Symlink(checkout, link); symErr == nil {
+		archiveDir = filepath.Join(link, "archive")
+	} else if runtime.GOOS == "linux" {
+		require.NoError(t, symErr)
+	}
 	file := filepath.Join(base, "synthetic.csv")
 	require.NoError(t, os.WriteFile(file, []byte("ID,Data,Descrição,Valor,Tipo\nSYN-1,01/02/2026,Synthetic,1.00,Despesa\n"), 0600))
 	var out bytes.Buffer
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // The pre-fix implementation must not contact even the QA database.
-	err = run(ctx, []string{"--file", file, "--account", uuid.NewString(), "--apply", "--archive-dir", filepath.Join(link, "archive")}, &out)
-	require.ErrorContains(t, err, "non-symlink", "shared archive validation must run before any database access")
+	err = run(ctx, []string{"--file", file, "--account", uuid.NewString(), "--apply", "--archive-dir", archiveDir}, &out)
+	if runtime.GOOS == "linux" {
+		require.ErrorContains(t, err, "non-symlink", "shared archive validation must run before any database access")
+	} else {
+		require.ErrorContains(t, err, "secure local source archive requires Linux", "archive validation must fail closed before any database access")
+	}
 	_, err = os.Stat(filepath.Join(checkout, "archive"))
 	require.True(t, os.IsNotExist(err))
 }

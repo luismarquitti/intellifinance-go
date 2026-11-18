@@ -24,7 +24,10 @@ func getTestPool(t *testing.T) (*pgxpool.Pool, uuid.UUID) {
 	if dbURL == "" {
 		dbURL = os.Getenv("TEST_DATABASE_URL")
 	}
-	require.NotEmpty(t, dbURL, "DATABASE_URL is required for tests")
+	if dbURL == "" {
+		//nolint:gosec // #nosec G101 -- default local test database connection string
+		dbURL = "postgres://intellifinance_app:CHANGE_IN_PRODUCTION@localhost:5432/intellifinance_test?sslmode=disable"
+	}
 	require.NoError(t, config.ValidateDisposableDatabase(dbURL, os.Getenv("ENVIRONMENT")))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -41,25 +44,8 @@ func getTestPool(t *testing.T) (*pgxpool.Pool, uuid.UUID) {
 }
 
 func TestMCPServer_InitializeAndListTools(t *testing.T) {
-	pool, tenantID := getTestPool(t)
-	defer pool.Close()
-
-	accountRepo := postgres.NewAccountRepository(pool)
-	txRepo := postgres.NewTransactionRepository(pool)
-	invRepo := postgres.NewInvoiceRepository(pool)
-	snapRepo := postgres.NewProviderBalanceSnapshotRepository(pool)
-	actionRepo := postgres.NewPendingActionRepository(pool)
-	txService := app.NewTransactionService(txRepo)
-
 	server := &MCPServer{
-		pool:        pool,
-		tenantID:    tenantID,
-		logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		accountRepo: accountRepo,
-		txService:   txService,
-		invRepo:     invRepo,
-		snapRepo:    snapRepo,
-		actionRepo:  actionRepo,
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	// 1. Test initialize
