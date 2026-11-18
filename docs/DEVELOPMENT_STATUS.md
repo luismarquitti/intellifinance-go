@@ -1,4 +1,46 @@
 
+## Verificação de 2026-11-18 — Execução do Workflow 3 (Matt Pocock Skills): Ciclo 1 Concluído e Próximos Passos
+
+**Marco atingido: Etapas 1 a 6 do Workflow 3 (`Vibe-Code Rescue`) executadas para o Candidato 1 (`Deepen Open Finance Sync & Invoice Settlement`), com rede de proteção configurada, revisão em dois eixos aprovada pós-correções e suíte de pacotes unitários/CLI/frontend verde.**
+
+### 1. Resumo das Etapas 1 a 6 Executadas (Ciclo 1)
+
+1. **Etapa 1 — Estabilização, `/retro` & Guardrails Determinísticos**:
+   - Criado `CODING_STANDARDS.md` (separado para o eixo de revisão) e enxugado `AGENTS.md` com invariantes essenciais e ponteiros de contexto.
+   - Configurados `docs/agents/domain.md`, `docs/agents/issue-tracker.md` (incluindo tracker local em `.scratch/<feature-slug>/`) e `docs/agents/triage-labels.md`.
+   - Atualizado `.pre-commit-config.yaml` (`golangci-lint v2.15.0`) e adicionado job `frontend-check` (`npm --prefix web ci --ignore-scripts` + `npm --prefix web run build`) em `.github/workflows/ci.yml`.
+2. **Etapa 2 — Arqueologia Semântica (`/domain-modeling`)**:
+   - Criado `GLOSSARY.md` com termos canônicos e listas `_Avoid_` (*Tenant, Account, Liquid Account, Transaction, Ledger Balance, Provider Balance Snapshot, Internal Transfer, Outflow Leg, Inflow Leg, Invoice, Invoice Settlement, Pending Action, Canonical Source, Category, Split*).
+   - Isolados artefatos desconectados do runtime ativo em `.out-of-scope/README.md` (`Split`, `IngestionJob`, parsers `OFX`/`Excel`/`PDF`, `ports.AIClassifier`).
+3. **Etapa 3 — Estancamento de Falhas (`/diagnosing-bugs`)**:
+   - Corrigido `TestCanonicalCommandRejectsSymlinkArchiveBeforeDatabase` em `cmd/import-ledger/main_test.go` para validar falha fechada antes do banco em Linux e não-Linux sem `t.Skip`.
+   - Desacoplado `TestMCPServer_InitializeAndListTools` do pool PostgreSQL em `cmd/mcp/mcp_test.go` e ajustado fallback padrão de `getTestPool` para `intellifinance_test`.
+4. **Etapas 4, 5 e 6 — Candidato 1 (`Deepen Open Finance Sync & Invoice Settlement`)**:
+   - Spec e 4 tickets (*Expand → Migrate → Contract*) concluídos em `.scratch/openfinance-sync-deepening/` (`spec.md` e `issues/01..04.md`).
+   - Core puro `in-process` em `internal/domain/invoice_settlement.go` (`+ invoice_settlement_test.go`): normalização de sinal/status (`NormalizeProviderTransaction`), ciclo de `Invoice` com clamping em `America/Sao_Paulo` (`ResolveInvoiceCycle`, `ExtractBrazilCalendarDay`), matching ranqueado de `Invoice Settlement` (`MatchInvoiceSettlement`, `MatchInvoiceForSettlementLeg`, `ApplySettlement`, `ClearSettlement`), `IsLiquidAccount`, `IsInvoiceSettlement` e deltas de `Ledger Balance` (`ComputeLiquidAccountAnchorDelta`, `ComputeCreditCardLiabilityDelta`).
+   - Extensão da costura `ports.TransactionRepository` com `ReconcileExternalTransaction` e persistência de `bill_id` em `Create`/`BatchCreate` em `internal/adapters/outbound/persistence/postgres/transaction_repository.go` (e espelho em `internal/app/app_test.go`).
+   - Novo módulo profundo `OpenFinanceSyncService` (`internal/ports/open_finance_sync_service.go`, `internal/app/open_finance_sync_service.go`, `internal/app/open_finance_sync_service_test.go`).
+   - Migração de `internal/app/invoice_service.go`, `internal/app/transfer_reconciliation_service.go` e `cmd/sync-pluggy/main.go` (reduzido de 631 linhas com SQL bruto para adaptador CLI enxuto de 137 linhas).
+   - Revisão em dois eixos (`/code-review`: Standards + Spec) executada, com correções aplicadas e revalidadas.
+5. **Escopo Verificado em 2026-11-18**:
+   - `go test -count=1` verde em `internal/domain`, `internal/app`, `internal/config`, `internal/ports`, `internal/adapters/inbound/http/...`, `internal/adapters/outbound/parsers`, `internal/adapters/outbound/openfinance/pluggy`, `cmd/api`, `cmd/fixturegen`, `cmd/import-ledger`, `cmd/sync-pluggy` (build/no test files) e `TestMCPServer_InitializeAndListTools` em `cmd/mcp`; `go vet ./...` e `npm --prefix web run build` verdes.
+   - *Pendente de execução em host Linux/PostgreSQL*: `go test -race ./...` (exige CGO + PostgreSQL de teste), `golangci-lint run`, `make test-scripts` (`python3`) e suítes de integração em `internal/adapters/outbound/persistence/postgres`, `internal/bootstrap`, `cmd/migrate` com DB real e `TestMCPServer_ProposeCategorizationHITL`.
+
+### 2. Próximo Passo a Ser Executado (Roteiro de Retomada)
+
+1. **Prioridade Imediata — Ciclo 2 do Workflow 3: Candidato 2 (`Deepen Pending Action HITL Governance`)**:
+   - **Arquivos-alvo**: `internal/adapters/inbound/http/handlers/pending_action_handler.go`, `internal/adapters/inbound/http/router.go`, `cmd/mcp/main.go`, `internal/app/category_matcher.go`, `internal/app/transfer_reconciliation_service.go`.
+   - **Objetivo**: Extrair a orquestração de aprovação/rejeição (`executeApproval`, `ApproveBatch`, `RejectBatch`) de `PendingActionHandler` e a construção manual de mapas `map[string]any` nos 3 produtores (`cmd/mcp`, `CategoryMatcher`, `TransferReconciliationService`) para um módulo profundo `PendingAction` (`ports.PendingActionService` + `app.PendingActionService`), eliminando acesso direto do handler HTTP a `PendingActionRepository`/`InvoiceRepository` e propagando erros explicitamente.
+   - **Sequência**: Rodar *Design It Twice* (`/codebase-design`) → `/to-spec` e `/to-tickets` em `.scratch/pending-action-hitl-deepening/` → `/implement` + `/tdd` → `/code-review`.
+2. **Alinhamento de Schema `sqlc` (`bill_id`)**:
+   - Atualizar `internal/adapters/outbound/persistence/postgres/queries/transactions.sql` e regenerar `sqlc` (`internal/adapters/outbound/persistence/postgres/db/`) para incluir `bill_id` nativamente em `db.Transaction`, `UpsertTransaction` e `dbToDomainTransaction`.
+3. **Ciclos Opcionais Subsequentes da Radiografia**:
+   - **Candidato 3 (`Worth exploring`)**: `Collapse Pass-Through CRUD Modules` (`AccountService`, `CategoryService`, `TransactionService`).
+   - **Candidato 4 (`Worth exploring`)**: `Deepen Frontend Ledger Workspace State` (`web/src/App.tsx` → `useLedgerWorkspace`).
+   - Executar suíte completa `make test` (`-race` + PostgreSQL isolado) e `make lint` em host Linux/CI para fechar a cobertura de integração do Ciclo 1.
+
+---
+
 ## Verificação de 2026-11-11 — Consolidação de Open Finance, Faturas, Migrações e MCP HITL
 
 **Marco atingido: Integração Open Finance (Pluggy), Modelo de Faturas de Cartão de Crédito, Migrador DDL com locks atômicos e Servidor MCP Go com governança HITL entregues e 100% testados.**
