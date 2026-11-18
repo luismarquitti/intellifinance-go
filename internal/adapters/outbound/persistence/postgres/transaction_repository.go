@@ -97,6 +97,12 @@ func (r *TransactionRepository) Create(ctx context.Context, tx *domain.Transacti
 	if err := q.UpsertTransaction(ctx, params); err != nil {
 		return fmt.Errorf("failed to upsert transaction: %w", err)
 	}
+	if tx.BillID != nil && *tx.BillID != uuid.Nil {
+		const setBillSQL = `UPDATE transactions SET bill_id = $3, updated_at = NOW() WHERE id = $1 AND tenant_id = $2;`
+		if _, err := r.getDB(ctx).Exec(ctx, setBillSQL, tx.ID, tx.TenantID, *tx.BillID); err != nil {
+			return fmt.Errorf("failed to set bill_id on transaction create: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -173,6 +179,7 @@ INSERT INTO transactions (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
 ) ON CONFLICT (tenant_id, fingerprint) DO NOTHING;`
 
+		queued := 0
 		for _, tx := range txs {
 			params, err := toUpsertParams(tx)
 			if err != nil {
@@ -206,6 +213,11 @@ INSERT INTO transactions (
 				params.CreatedAt,
 				params.UpdatedAt,
 			)
+			queued++
+			if tx.BillID != nil && *tx.BillID != uuid.Nil {
+				batch.Queue(`UPDATE transactions SET bill_id = $3, updated_at = NOW() WHERE id = $1 AND tenant_id = $2;`, tx.ID, tx.TenantID, *tx.BillID)
+				queued++
+			}
 		}
 
 		br := sender.SendBatch(ctx, batch)
@@ -213,7 +225,7 @@ INSERT INTO transactions (
 			_ = br.Close()
 		}()
 
-		for range txs {
+		for i := 0; i < queued; i++ {
 			if _, err := br.Exec(); err != nil {
 				return fmt.Errorf("failed executing batch upsert: %w", err)
 			}
@@ -229,6 +241,12 @@ INSERT INTO transactions (
 		}
 		if err := q.UpsertTransaction(ctx, params); err != nil {
 			return fmt.Errorf("failed to upsert transaction in loop: %w", err)
+		}
+		if tx.BillID != nil && *tx.BillID != uuid.Nil {
+			const setBillSQL = `UPDATE transactions SET bill_id = $3, updated_at = NOW() WHERE id = $1 AND tenant_id = $2;`
+			if _, err := dbtx.Exec(ctx, setBillSQL, tx.ID, tx.TenantID, *tx.BillID); err != nil {
+				return fmt.Errorf("failed to set bill_id in batch create: %w", err)
+			}
 		}
 	}
 
@@ -1088,4 +1106,58 @@ func (r *TransactionRepository) ListByBillID(ctx context.Context, tenantID, bill
 	}
 
 	return result, nil
+}
+
+// ReconcileExternalTransaction updates bill_id and transitions PENDING/COMPLETED status
+// for an existing external transaction within a tenant boundary.
+func (r *TransactionRepository) ReconcileExternalTransaction(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	externalID string,
+	billID *uuid.UUID,
+	status domain.TransactionStatus,
+) error {
+	if strings.TrimSpace(externalID) == "" {
+		return nil
+	}
+	if r.tx == nil {
+		if _, ok := TxFromContext(ctx); !ok && r.pool != nil {
+			return WithTenantTx(ctx, r.pool, tenantID, uuid.Nil, func(tx pgx.Tx) error {
+				return r.WithTx(tx).ReconcileExternalTransaction(ctx, tenantID, externalID, billID, status)
+			})
+		}
+	}
+
+	dbtx := r.getDB(ctx)
+	if billID != nil && *billID != uuid.Nil {
+		const billSQL = `UPDATE transactions SET bill_id = $1, updated_at = NOW() WHERE tenant_id = $2 AND external_id = $3;`
+		if _, err := dbtx.Exec(ctx, billSQL, *billID, tenantID, externalID); err != nil {
+			return fmt.Errorf("failed to reconcile external transaction bill_id: %w", err)
+		}
+	}
+
+	switch status {
+	case domain.TransactionStatusPending:
+		const toPendingSQL = `
+			UPDATE transactions
+			SET status = 'PENDING',
+			    metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{is_future}', 'true'::jsonb),
+			    updated_at = NOW()
+			WHERE tenant_id = $1 AND external_id = $2 AND status = 'COMPLETED';`
+		if _, err := dbtx.Exec(ctx, toPendingSQL, tenantID, externalID); err != nil {
+			return fmt.Errorf("failed to transition external transaction to PENDING: %w", err)
+		}
+	case domain.TransactionStatusCompleted:
+		const toCompletedSQL = `
+			UPDATE transactions
+			SET status = 'COMPLETED',
+			    metadata = COALESCE(metadata, '{}'::jsonb) - 'is_future',
+			    updated_at = NOW()
+			WHERE tenant_id = $1 AND external_id = $2 AND status = 'PENDING';`
+		if _, err := dbtx.Exec(ctx, toCompletedSQL, tenantID, externalID); err != nil {
+			return fmt.Errorf("failed to transition external transaction to COMPLETED: %w", err)
+		}
+	}
+
+	return nil
 }

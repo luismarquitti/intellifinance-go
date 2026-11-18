@@ -197,6 +197,42 @@ func (m *mockTxRepo) ListByBillID(ctx context.Context, tenantID, billID uuid.UUI
 	}
 	return res, nil
 }
+func (m *mockTxRepo) ReconcileExternalTransaction(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	externalID string,
+	billID *uuid.UUID,
+	status domain.TransactionStatus,
+) error {
+	if strings.TrimSpace(externalID) == "" {
+		return nil
+	}
+	for _, tx := range m.txs {
+		if tx.TenantID != tenantID || tx.ExternalID != externalID {
+			continue
+		}
+		if billID != nil && *billID != uuid.Nil {
+			tx.BillID = billID
+		}
+		if tx.Metadata == nil {
+			tx.Metadata = make(map[string]any)
+		}
+		if status == domain.TransactionStatusPending && tx.Status == domain.TransactionStatusCompleted {
+			if err := m.accounts.UpdateBalance(ctx, tenantID, tx.AccountID, tx.Amount.Neg()); err != nil {
+				return err
+			}
+			tx.Status = domain.TransactionStatusPending
+			tx.Metadata["is_future"] = true
+		} else if status == domain.TransactionStatusCompleted && tx.Status == domain.TransactionStatusPending {
+			if err := m.accounts.UpdateBalance(ctx, tenantID, tx.AccountID, tx.Amount); err != nil {
+				return err
+			}
+			tx.Status = domain.TransactionStatusCompleted
+			delete(tx.Metadata, "is_future")
+		}
+	}
+	return nil
+}
 
 
 func TestCSVIngestionService_EndToEnd(t *testing.T) {

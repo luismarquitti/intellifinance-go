@@ -103,8 +103,16 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		}
 	}
 
-	// 4. Load invoices for bill payment detection
+	// 4. Load invoices for Invoice Settlement detection
 	invoices, _ := s.invRepo.List(ctx, tenantID, nil)
+
+	// Prioritize Liquid Account outflows whose description matches Invoice Settlement keywords
+	// so generic same-amount debits do not preempt explicit card-payment outflows.
+	sort.SliceStable(outflows, func(i, j int) bool {
+		iMatch := domain.IsCheckingInvoicePaymentDescription(outflows[i].Description)
+		jMatch := domain.IsCheckingInvoicePaymentDescription(outflows[j].Description)
+		return iMatch && !jMatch
+	})
 
 	pairedInflows := make(map[uuid.UUID]bool)
 	var proposedActions []*domain.PendingAction
@@ -166,26 +174,22 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		reconciliationType := "INTERNAL_TRANSFER"
 		var matchedInvoiceID *uuid.UUID
 
-		// Check if destination is Credit Card (Bill Payment)
+		// Check if destination is Credit Card (Invoice Settlement)
 		if dstAcc != nil && dstAcc.Type == domain.AccountTypeCreditCard {
 			reconciliationType = "BILL_PAYMENT"
-			hasInvoicesForCard := false
-			var matchedInv *domain.CreditCardInvoice
-			// Try to match an invoice for this credit card account
-			for _, inv := range invoices {
-				if inv.AccountID == dstAcc.ID {
-					hasInvoicesForCard = true
-					if inv.TotalAmount.Equal(bestInflow.Amount) || math.Abs(inv.DueDate.Sub(bestInflow.Date).Hours())/24.0 <= 10.0 {
-						matchedInv = inv
-						matchedInvoiceID = &inv.ID
-						break
-					}
+			matchedInv, hasInvoicesForCard := domain.MatchInvoiceForSettlementLeg(
+				invoices,
+				dstAcc.ID,
+				bestInflow.Amount,
+				bestInflow.Date,
+				domain.DefaultSettlementWindow(nil),
+			)
+			if matchedInv != nil {
+				if matchedInv.Status == domain.InvoiceStatusPaid {
+					continue
 				}
-			}
-			if matchedInv != nil && matchedInv.Status == domain.InvoiceStatusPaid {
-				continue
-			}
-			if hasInvoicesForCard && matchedInv == nil {
+				matchedInvoiceID = &matchedInv.ID
+			} else if hasInvoicesForCard {
 				continue
 			}
 		}

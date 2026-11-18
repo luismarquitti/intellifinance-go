@@ -83,4 +83,8 @@ type TransactionRepository interface {
 
 	// ListByBillID retrieves all transactions associated with a credit card invoice within a tenant boundary.
 	ListByBillID(ctx context.Context, tenantID, billID uuid.UUID) ([]*domain.Transaction, error)
+
+	// ReconcileExternalTransaction updates bill_id and transitions PENDING/COMPLETED status
+	// for an existing external transaction within a tenant boundary.
+	ReconcileExternalTransaction(ctx context.Context, tenantID uuid.UUID, externalID string, billID *uuid.UUID, status domain.TransactionStatus) error
 }
