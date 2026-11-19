@@ -28,10 +28,10 @@ type JSONRPCRequest struct {
 }
 
 type JSONRPCResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      any         `json:"id"`
-	Result  any         `json:"result,omitempty"`
-	Error   *RPCError   `json:"error,omitempty"`
+	JSONRPC string    `json:"jsonrpc"`
+	ID      any       `json:"id"`
+	Result  any       `json:"result,omitempty"`
+	Error   *RPCError `json:"error,omitempty"`
 }
 
 type RPCError struct {
@@ -40,14 +40,14 @@ type RPCError struct {
 }
 
 type MCPServer struct {
-	pool        *pgxpool.Pool
-	tenantID    uuid.UUID
-	logger      *slog.Logger
-	accountRepo ports.AccountRepository
-	txService   ports.TransactionService
-	invRepo     ports.InvoiceRepository
-	snapRepo    ports.ProviderBalanceSnapshotRepository
-	actionRepo  ports.PendingActionRepository
+	pool                 *pgxpool.Pool
+	tenantID             uuid.UUID
+	logger               *slog.Logger
+	accountRepo          ports.AccountRepository
+	txService            ports.TransactionService
+	invRepo              ports.InvoiceRepository
+	snapRepo             ports.ProviderBalanceSnapshotRepository
+	pendingActionService ports.PendingActionService
 }
 
 func main() {
@@ -81,21 +81,25 @@ func main() {
 
 	accountRepo := postgres.NewAccountRepository(pool)
 	txRepo := postgres.NewTransactionRepository(pool)
+	catRepo := postgres.NewCategoryRepository(pool)
 	invRepo := postgres.NewInvoiceRepository(pool)
 	snapRepo := postgres.NewProviderBalanceSnapshotRepository(pool)
 	actionRepo := postgres.NewPendingActionRepository(pool)
+	transferRepo := postgres.NewTransferRepository(pool)
 
 	txService := app.NewTransactionService(txRepo)
+	transferService := app.NewTransferService(transferRepo)
+	pendingActionService := app.NewPendingActionService(actionRepo, txRepo, catRepo, accountRepo, invRepo, transferService)
 
 	server := &MCPServer{
-		pool:        pool,
-		tenantID:    tenantID,
-		logger:      logger,
-		accountRepo: accountRepo,
-		txService:   txService,
-		invRepo:     invRepo,
-		snapRepo:    snapRepo,
-		actionRepo:  actionRepo,
+		pool:                 pool,
+		tenantID:             tenantID,
+		logger:               logger,
+		accountRepo:          accountRepo,
+		txService:            txService,
+		invRepo:              invRepo,
+		snapRepo:             snapRepo,
+		pendingActionService: pendingActionService,
 	}
 
 	server.Run(os.Stdin, os.Stdout)
@@ -294,13 +298,13 @@ func (s *MCPServer) executeTool(ctx context.Context, name string, args json.RawM
 		}
 
 		type balanceComparison struct {
-			AccountID         uuid.UUID `json:"account_id"`
-			Name              string    `json:"name"`
-			Type              string    `json:"type"`
-			LedgerBalance     string    `json:"ledger_balance"`
-			ProviderBalance   string    `json:"provider_balance,omitempty"`
-			ObservedAt        string    `json:"observed_at,omitempty"`
-			ReconciledDiff    string    `json:"reconciled_diff,omitempty"`
+			AccountID       uuid.UUID `json:"account_id"`
+			Name            string    `json:"name"`
+			Type            string    `json:"type"`
+			LedgerBalance   string    `json:"ledger_balance"`
+			ProviderBalance string    `json:"provider_balance,omitempty"`
+			ObservedAt      string    `json:"observed_at,omitempty"`
+			ReconciledDiff  string    `json:"reconciled_diff,omitempty"`
 		}
 
 		var comparisons []balanceComparison
@@ -372,7 +376,10 @@ func (s *MCPServer) executeTool(ctx context.Context, name string, args json.RawM
 		return string(data), nil
 
 	case "list_pending_actions":
-		actions, err := s.actionRepo.ListPending(ctx, s.tenantID)
+		if s.pendingActionService == nil {
+			return "", errors.New("pending action service is not configured")
+		}
+		actions, err := s.pendingActionService.ListPending(ctx, s.tenantID)
 		if err != nil {
 			return "", err
 		}
@@ -380,12 +387,15 @@ func (s *MCPServer) executeTool(ctx context.Context, name string, args json.RawM
 		return string(data), nil
 
 	case "propose_categorization":
+		if s.pendingActionService == nil {
+			return "", errors.New("pending action service is not configured")
+		}
 		var params struct {
 			TransactionID string `json:"transaction_id"`
 			CategoryID    string `json:"category_id"`
 			Reason        string `json:"reason"`
 		}
-		if err := json.Unmarshal(args, &params); err != nil {
+		if unmarshalErr := json.Unmarshal(args, &params); unmarshalErr != nil {
 			return "", errors.New("invalid arguments for propose_categorization")
 		}
 		txID, err := uuid.Parse(params.TransactionID)
@@ -397,22 +407,18 @@ func (s *MCPServer) executeTool(ctx context.Context, name string, args json.RawM
 			return "", fmt.Errorf("invalid category_id: %w", err)
 		}
 
-		action, err := domain.NewPendingAction(
+		action, err := s.pendingActionService.ProposeCategorization(
+			ctx,
 			s.tenantID,
 			"mcp-server",
-			domain.ActionTypeCategorizeTransaction,
-			map[string]any{
-				"transaction_id": txID.String(),
-				"category_id":    catID.String(),
-				"reason":         params.Reason,
+			domain.CategorizeTransactionProposal{
+				TransactionID: txID,
+				CategoryID:    catID,
+				Reason:        params.Reason,
 			},
 		)
 		if err != nil {
 			return "", fmt.Errorf("failed creating pending action proposal: %w", err)
-		}
-
-		if err := s.actionRepo.Save(ctx, action); err != nil {
-			return "", fmt.Errorf("failed persisting pending action: %w", err)
 		}
 
 		return fmt.Sprintf("Proposal recorded successfully. PendingAction ID: %s (Status: PENDING). A human review is required before changes take effect.", action.ID), nil

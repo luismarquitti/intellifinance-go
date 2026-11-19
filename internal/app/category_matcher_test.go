@@ -75,8 +75,9 @@ func TestCategoryMatcher_ScanAndPropose(t *testing.T) {
 
 	txRepo := newMockTxRepo(accRepo)
 	actionRepo := newMockPendingActionRepo()
+	pendingSvc := app.NewPendingActionService(actionRepo, txRepo, catRepo, accRepo, nil, nil)
 
-	matcher := app.NewCategoryMatcher(txRepo, catRepo, actionRepo)
+	matcher := app.NewCategoryMatcher(txRepo, catRepo, pendingSvc)
 
 	// 1. Transaction matching Open Finance hint
 	txHint := &domain.Transaction{
@@ -153,12 +154,22 @@ func TestCategoryMatcher_ScanAndPropose(t *testing.T) {
 	var foundSalario, foundSpotify bool
 	for _, act := range pendingActions {
 		assert.Equal(t, domain.ActionTypeCategorizeTransaction, act.ActionType)
+		assert.Equal(t, "ai_categorization_agent", act.CreatedByAgent)
 		if act.Payload["category_id"] == catSalario.ID.String() {
 			foundSalario = true
 			assert.Equal(t, catSalario.Name, act.Payload["category_name"])
+			assert.Equal(t, "SALARIO EMPRESA XYZ LTDA", act.Payload["description"])
+			assert.Equal(t, "SALARIO EMPRESA XYZ LTDA", act.Payload["clean_description"])
+			assert.Equal(t, "8500.00", act.Payload["amount"])
+			assert.Equal(t, domain.StandardizeDateToBrazil(txHint.Date), act.Payload["date"])
+			assert.Equal(t, "0.92", act.Payload["confidence"])
 		}
 		if act.Payload["category_id"] == catLazer.ID.String() {
 			foundSpotify = true
+			assert.Equal(t, catLazer.Name, act.Payload["category_name"])
+			assert.Equal(t, "SPOTIFY AB", act.Payload["description"])
+			assert.Equal(t, "-21.90", act.Payload["amount"])
+			assert.Equal(t, "0.88", act.Payload["confidence"])
 		}
 	}
 	assert.True(t, foundSalario, "Expected Salario proposal")
@@ -168,4 +179,12 @@ func TestCategoryMatcher_ScanAndPropose(t *testing.T) {
 	result2, err2 := matcher.ScanAndPropose(ctx, tenantID)
 	require.NoError(t, err2)
 	assert.Equal(t, 0, result2.ProposedActionsCount)
+
+	// Invalid tenant and missing service fail closed
+	_, nilTenantErr := matcher.ScanAndPropose(ctx, uuid.Nil)
+	require.ErrorIs(t, nilTenantErr, domain.ErrInvalidID)
+
+	unconfigured := app.NewCategoryMatcher(txRepo, catRepo, nil)
+	_, nilSvcErr := unconfigured.ScanAndPropose(ctx, tenantID)
+	require.Error(t, nilSvcErr)
 }

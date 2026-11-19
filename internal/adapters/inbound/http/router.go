@@ -26,7 +26,6 @@ type RouterConfig struct {
 	CategoryRuleService       ports.CategoryRuleService
 	CSVIngestionService       ports.CSVIngestionService
 	InvoiceService            ports.InvoiceService
-	InvoiceRepo               ports.InvoiceRepository
 	OpenFinanceWebhookHandler *handlers.OpenFinanceWebhookHandler
 	OpenFinanceTenantResolver ports.OpenFinanceTenantResolver
 	TaskQueue                 ports.TaskQueue
@@ -35,7 +34,7 @@ type RouterConfig struct {
 	Logger                    *slog.Logger
 	CORSOptions               *cors.Options
 	ReadinessChecker          ports.ReadinessChecker
-	PendingActionRepo         ports.PendingActionRepository
+	PendingActionService      ports.PendingActionService
 }
 
 // NewRouter builds and configures the Chi v5 router with all required middlewares,
@@ -92,8 +91,8 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		csvHandler = handlers.NewCSVIngestHandler(cfg.CSVIngestionService)
 	}
 	var pendingActionHandler *handlers.PendingActionHandler
-	if cfg.PendingActionRepo != nil {
-		pendingActionHandler = handlers.NewPendingActionHandler(cfg.PendingActionRepo, cfg.TransactionService, cfg.TransferService, cfg.InvoiceRepo)
+	if cfg.PendingActionService != nil {
+		pendingActionHandler = handlers.NewPendingActionHandler(cfg.PendingActionService)
 	}
 	var invoiceHandler *handlers.InvoiceHandler
 	if cfg.InvoiceService != nil {

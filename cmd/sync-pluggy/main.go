@@ -71,9 +71,12 @@ func main() {
 	snapRepo := postgres.NewProviderBalanceSnapshotRepository(pool)
 	pendingActionRepo := postgres.NewPendingActionRepository(pool)
 	catRepo := postgres.NewCategoryRepository(pool)
+	transferRepo := postgres.NewTransferRepository(pool)
 
-	reconciler := app.NewTransferReconciliationService(txRepo, accountRepo, invRepo, pendingActionRepo)
-	categoryMatcher := app.NewCategoryMatcher(txRepo, catRepo, pendingActionRepo)
+	transferService := app.NewTransferService(transferRepo)
+	pendingActionService := app.NewPendingActionService(pendingActionRepo, txRepo, catRepo, accountRepo, invRepo, transferService)
+	reconciler := app.NewTransferReconciliationService(txRepo, accountRepo, invRepo, pendingActionService)
+	categoryMatcher := app.NewCategoryMatcher(txRepo, catRepo, pendingActionService)
 	var syncService ports.OpenFinanceSyncService = app.NewOpenFinanceSyncService(
 		pluggyClient,
 		accountRepo,
