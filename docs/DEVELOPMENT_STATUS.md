@@ -1,4 +1,45 @@
 
+## Verificação de 2026-11-19 — Execução do Workflow 3 (Matt Pocock Skills): Ciclo 2 Concluído e Validação Integral no `lm-claw`
+
+**Marco atingido: Ciclo 2 do Workflow 3 (`Deepen Pending Action HITL Governance`) concluído, integrado em `dev`, sincronizado com `origin` e `lm-claw`, com suíte completa `-race` + PostgreSQL isolado (`655` eventos Go em `24` pacotes, `28` testes operacionais Python), `golangci-lint` (`0` issues), build completo e instâncias `personal` (`:8092`) e `qa` (`:8093`) validadas.**
+
+### 1. Resumo das Entregas do Ciclo 2 (`Pending Action HITL Governance`)
+
+1. **Design, Spec & Tickets (`.scratch/pending-action-hitl-deepening/`)**:
+   - Especificação `spec.md` e 3 tickets locais (*Expand → Migrate → Contract*) criados no branch `refactor/pending-action-hitl-deepening` (`65d1b6d`) após *Design It Twice* (`/codebase-design`).
+2. **Core Puro *In-Process* (`internal/domain/pending_action.go`, `transaction.go`, `errors.go` — Ticket 01 `8b18292`)**:
+   - Value objects tipados `CategorizeTransactionProposal` e `ReconcileTransferProposal` com precisão `decimal.Decimal` (eliminando `float64` da fronteira de propostas), construtores a partir de entidades, codecs JSON compatíveis com o frontend, índice de desduplicação $O(1)$ (`PendingActionIndex`), filtro puro `SelectPendingActions` e `Transaction.ApplyApprovedCategorization`.
+3. **Módulo Profundo de Aplicação (`internal/ports/pending_action_service.go`, `internal/app/pending_action_service.go` — Ticket 02 `bcf5b3e`)**:
+   - Porta única `ports.PendingActionService` (`ListPending`, `LoadPendingIndex`, `ProposeCategorization`, `ProposeTransferReconciliation`, `Approve`, `Reject`, `ApproveBatch`, `RejectBatch`) com hidratação automática de propostas ID-only do servidor MCP, desduplicação determinística e semântica *Execute-Before-MarkExecuted* (propagando erros explicitamente e sincronizando `Invoice.ApplySettlement` + saldo devedor via `ComputeCreditCardLiabilityDelta`).
+4. **Migração dos Produtores, Handler HTTP e Revisão em Dois Eixos (Ticket 03 `a6c1e62` + `16090c4`)**:
+   - Migrados `cmd/mcp/main.go`, `internal/app/category_matcher.go`, `internal/app/transfer_reconciliation_service.go`, `internal/adapters/inbound/http/handlers/pending_action_handler.go`, `router.go`, `problem/problem.go`, `cmd/api/main.go` e `cmd/sync-pluggy/main.go` para `PendingActionService`.
+   - Corrigidos apontamentos da revisão `/code-review` (`16090c4`, `978882e`) sobre decodificação monetária e pré-validação de liquidação de faturas, além de correções de lint em testes (`cfa1eca`).
+
+### 2. Evidências de Validação Executadas no `lm-claw` (2026-11-19)
+
+- **Linter**: `make lint` (`golangci-lint v2.15.0`) — **`0 issues`**.
+- **Suíte Completa (`make test`)**:
+  - `make test-scripts`: **`28` testes operacionais Python aprovados** (`OK`).
+  - `go test -race -count=1 -json ./... | python3 scripts/check-test-results.py` contra o banco isolado `*_test`: **`655` eventos Go aprovados em `24` pacotes** (`0` falhas, `0` skips; evidência salva localmente no `lm-claw` em `bin/test-results.jsonl`).
+- **Build & Integridade**:
+  - `make build`: frontend React 19 + Vite (`1610` módulos, `0` vulnerabilidades no `npm ci --ignore-scripts --prefix web`) + binários `bin/api`, `bin/seed`, `bin/import-ledger` compilados com sucesso.
+  - Compilados também `bin/mcp` (`./cmd/mcp`) e `bin/sync-pluggy` (`./cmd/sync-pluggy`).
+  - `go vet ./...`, `go mod verify` (`all modules verified`) e `git diff --check`: aprovados.
+- **Rollout e Validação Runtime (`personal` `:8092` e `qa` `:8093`)**:
+  - Binário `bin/api` (`SHA-256: 1d8dc195f89a0ef96af4da2a2d6183f34de0f5eee3a04e65715ffeddc8016649`) instalado em `personal/bin/api` e `qa/bin/api`; serviços `intellifinance-personal.service` e `intellifinance-personal-qa.service` reiniciados e `active`.
+  - Aplicadas as migrações `000002_open_finance_and_invoices.up.sql` e `000003_hitl_pending_actions.up.sql` (com backup prévio `qa/backups/before-000002-000003.dump` e `GRANT` explícito para `personal_app`) no cluster `intellifinance_personal_qa` (`:55434`), alinhando o schema ao cluster `personal` (`:55433`).
+  - Verificação HTTP em `:8092` e `:8093`: rotas anônimas (`/`, `/healthz`, `/readyz`, `/api/v1/pending-actions`) retornam `401` (fail-closed); rotas autenticadas (`/`, `/healthz`, `/readyz`, `/api/v1/accounts`, `/api/v1/invoices`, `/api/v1/pending-actions`, `/api/v1/session`) retornam `200` com `fixed_identity: true`.
+
+### 3. Próximos Passos
+
+1. **Alinhamento de Schema `sqlc` (`bill_id`)**:
+   - Atualizar `internal/adapters/outbound/persistence/postgres/queries/transactions.sql` e regenerar `sqlc` (`internal/adapters/outbound/persistence/postgres/db/`) para incluir `bill_id` nativamente em `db.Transaction`, `UpsertTransaction` e `dbToDomainTransaction`.
+2. **Ciclos Opcionais Subsequentes da Radiografia (Workflow 3)**:
+   - **Candidato 3 (`Worth exploring`)**: `Collapse Pass-Through CRUD Modules` (`AccountService`, `CategoryService`, `TransactionService`).
+   - **Candidato 4 (`Worth exploring`)**: `Deepen Frontend Ledger Workspace State` (`web/src/App.tsx` → `useLedgerWorkspace`).
+
+---
+
 ## Verificação de 2026-11-18 — Execução do Workflow 3 (Matt Pocock Skills): Ciclo 1 Concluído e Próximos Passos
 
 **Marco atingido: Etapas 1 a 6 do Workflow 3 (`Vibe-Code Rescue`) executadas para o Candidato 1 (`Deepen Open Finance Sync & Invoice Settlement`), com rede de proteção configurada, revisão em dois eixos aprovada pós-correções e suíte de pacotes unitários/CLI/frontend verde.**
