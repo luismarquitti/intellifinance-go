@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Define sentinel errors (`ErrInvalidPendingActionPayload`, `ErrPendingActionNotPending`, `ErrPendingActionNotApproved`, `ErrDuplicatePendingAction`, `ErrUnsupportedPendingActionType`) and `ReconciliationType` constants (`INTERNAL_TRANSFER`, `BILL_PAYMENT`)
-- [ ] Implement `CategorizeTransactionProposal` and `ReconcileTransferProposal` with `decimal.Decimal` precision validation (`IsRepresentableInCents`, confidence in `[0, 1]`), entity builders (`NewCategorizeProposalFromEntities`, `NewReconcileTransferProposalFromEntities`), typed constructors (`NewCategorizePendingAction`, `NewReconcileTransferPendingAction`), and decoders (`DecodeCategorizePayload`, `DecodeReconcileTransferPayload`) preserving 100% frontend JSON key compatibility
-- [ ] Implement pure in-process `PendingActionIndex` (`NewPendingActionIndex`, `HasCategorizationFor`, `HasTransferLeg`, `HasDeduplicationKey`, `Record`) and `SelectPendingActions` (`PendingActionSelector`)
-- [ ] Add table-driven unit tests in `internal/domain/pending_action_test.go` covering validation, round-trip encoding/decoding, deduplication indexing, and batch selection with zero mocks and zero skipped tests
+- [x] Define sentinel errors (`ErrInvalidPendingActionPayload`, `ErrPendingActionNotPending`, `ErrPendingActionNotApproved`, `ErrDuplicatePendingAction`, `ErrUnsupportedPendingActionType`) and `ReconciliationType` constants (`INTERNAL_TRANSFER`, `BILL_PAYMENT`)
+- [x] Implement `CategorizeTransactionProposal` and `ReconcileTransferProposal` with `decimal.Decimal` precision validation (`IsRepresentableInCents`, confidence in `[0, 1]`), entity builders (`NewCategorizeProposalFromEntities`, `NewReconcileTransferProposalFromEntities`), typed constructors (`NewCategorizePendingAction`, `NewReconcileTransferPendingAction`), and decoders (`DecodeCategorizePayload`, `DecodeReconcileTransferPayload`) preserving 100% frontend JSON key compatibility
+- [x] Implement pure in-process `PendingActionIndex` (`NewPendingActionIndex`, `HasCategorizationFor`, `HasTransferLeg`, `HasDeduplicationKey`, `Record`) and `SelectPendingActions` (`PendingActionSelector`)
+- [x] Add table-driven unit tests in `internal/domain/pending_action_test.go` covering validation, round-trip encoding/decoding, deduplication indexing, and batch selection with zero mocks and zero skipped tests
