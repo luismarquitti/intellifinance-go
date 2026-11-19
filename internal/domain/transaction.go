@@ -327,6 +327,39 @@ func (t *Transaction) VerifyCategory(categoryID uuid.UUID) error {
 	return nil
 }
 
+// ApplyApprovedCategorization applies a human-approved AI categorization proposal to a non-void, non-transfer transaction.
+func (t *Transaction) ApplyApprovedCategorization(categoryID uuid.UUID, confidence *decimal.Decimal, modelVersion string) error {
+	if t == nil {
+		return ErrNotFound
+	}
+	if categoryID == uuid.Nil {
+		return ErrInvalidID
+	}
+	if t.Status == TransactionStatusVoid {
+		return ErrInvalidStatus
+	}
+	if t.Type == TransactionTypeTransfer {
+		return ErrInvalidTransactionType
+	}
+	if confidence != nil && (confidence.IsNegative() || confidence.GreaterThan(decimal.NewFromInt(1))) {
+		return ErrInvalidAmount
+	}
+
+	idCopy := categoryID
+	t.CategoryID = &idCopy
+	t.IsAICategorized = true
+	t.IsManuallyVerified = true
+	if confidence != nil {
+		confCopy := *confidence
+		t.AIConfidence = &confCopy
+	}
+	if trimmedModel := strings.TrimSpace(modelVersion); trimmedModel != "" {
+		t.AIModelVersion = trimmedModel
+	}
+	t.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 // Void transitions the transaction into VOID status.
 func (t *Transaction) Void() {
 	t.Status = TransactionStatusVoid

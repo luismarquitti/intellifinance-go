@@ -78,4 +78,19 @@ var (
 
 	// ErrTransferNotLinked is returned when attempting to unlink a transaction that is not part of a transfer pair.
 	ErrTransferNotLinked = errors.New("transaction is not linked to a transfer peer")
+
+	// ErrInvalidPendingActionPayload is returned when a pending action payload or proposal fails validation or decoding.
+	ErrInvalidPendingActionPayload = errors.New("invalid pending action payload")
+
+	// ErrPendingActionNotPending is returned when approving or rejecting a pending action that is not in PENDING status.
+	ErrPendingActionNotPending = errors.New("pending action is not in pending status")
+
+	// ErrPendingActionNotApproved is returned when executing a pending action that is not in APPROVED status.
+	ErrPendingActionNotApproved = errors.New("pending action is not in approved status")
+
+	// ErrDuplicatePendingAction is returned when an active pending action already exists for the same target.
+	ErrDuplicatePendingAction = errors.New("duplicate pending action already exists")
+
+	// ErrUnsupportedPendingActionType is returned when a pending action type is empty or unsupported.
+	ErrUnsupportedPendingActionType = errors.New("unsupported pending action type")
 )
