@@ -191,9 +191,10 @@ func TestOpenFinanceSyncService_SyncItem_EndToEndAndIdempotentResync(t *testing.
 
 	var chkAcc, ccAcc *domain.Account
 	for _, a := range accs {
-		if a.Type == domain.AccountTypeChecking {
+		switch a.Type {
+		case domain.AccountTypeChecking:
 			chkAcc = a
-		} else if a.Type == domain.AccountTypeCreditCard {
+		case domain.AccountTypeCreditCard:
 			ccAcc = a
 		}
 	}

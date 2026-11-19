@@ -1258,7 +1258,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		}
 
 		// 1. ConfirmTransfer error
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv := setup()
+		actionRepo, _, _, _, transferSvc, svc, act, _, _ := setup()
 		transferSvc.confirmErr = errors.New("confirm failed")
 		_, err := svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "confirm failed")
@@ -1266,7 +1266,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 2. Invoice Save error
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
+		actionRepo, _, _, invRepo, _, svc, act, _, _ := setup()
 		invRepo.saveErr = errors.New("invoice save failed")
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "invoice save failed")
@@ -1274,7 +1274,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 3. Account UpdateBalance error
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
+		actionRepo, _, accRepo, _, _, svc, act, _, _ := setup()
 		accRepo.updateBalanceErr = errors.New("balance update failed")
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "balance update failed")
@@ -1282,7 +1282,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 4. Invoice belongs to a different card account than DestinationAccountID (fails pre-flight before ConfirmTransfer)
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
+		actionRepo, _, _, invRepo, transferSvc, svc, act, _, inv := setup()
 		wrongCardInv := *inv
 		wrongCardInv.AccountID = uuid.New()
 		require.NoError(t, invRepo.Save(ctx, &wrongCardInv))
@@ -1293,7 +1293,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 5. Missing invoice (fails pre-flight before ConfirmTransfer)
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
+		actionRepo, _, _, invRepo, transferSvc, svc, act, _, inv = setup()
 		delete(invRepo.invoices, inv.ID)
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorIs(t, err, domain.ErrNotFound)
@@ -1302,7 +1302,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 6. Invoice ListByAccount error during pre-flight aborts before ConfirmTransfer
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
+		actionRepo, _, _, invRepo, transferSvc, svc, act, _, _ = setup()
 		invRepo.listErr = errors.New("list invoices failed")
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "list invoices failed")
@@ -1311,7 +1311,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 7. Account GetByID error during pre-flight aborts before ConfirmTransfer
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
+		actionRepo, _, accRepo, _, transferSvc, svc, act, _, _ = setup()
 		accRepo.getErr = errors.New("account lookup failed")
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "account lookup failed")
@@ -1320,7 +1320,7 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
 		// 8. Missing card account or nil invoice/account repo fails pre-flight before ConfirmTransfer
-		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, cardAcc, inv := setup()
+		actionRepo, _, accRepo, _, transferSvc, svc, act, cardAcc, _ := setup()
 		delete(accRepo.accounts, cardAcc.ID)
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorIs(t, err, domain.ErrNotFound)
