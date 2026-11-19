@@ -1,6 +1,6 @@
 # Spec: Deepen Pending Action HITL Governance
 
-**Status:** ready-for-agent
+**Status:** completed
 
 ## Problem Statement
 
