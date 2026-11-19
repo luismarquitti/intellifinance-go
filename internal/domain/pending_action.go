@@ -176,19 +176,27 @@ type CategorizeTransactionProposal struct {
 	Reason           string
 }
 
-// Validate checks that required identifiers, monetary precision, and confidence bounds are valid.
-func (p CategorizeTransactionProposal) Validate() error {
+// ValidateHeader checks that required identifiers and confidence bounds are valid before hydration.
+func (p CategorizeTransactionProposal) ValidateHeader() error {
 	if p.TransactionID == uuid.Nil {
 		return fmt.Errorf("%w: transaction_id: %w", ErrInvalidPendingActionPayload, ErrInvalidID)
 	}
 	if p.CategoryID == uuid.Nil {
 		return fmt.Errorf("%w: category_id: %w", ErrInvalidPendingActionPayload, ErrInvalidID)
 	}
+	if !isValidConfidence(p.Confidence) {
+		return fmt.Errorf("%w: confidence must be between 0 and 1", ErrInvalidPendingActionPayload)
+	}
+	return nil
+}
+
+// Validate checks that required identifiers, monetary precision, and confidence bounds are valid.
+func (p CategorizeTransactionProposal) Validate() error {
+	if err := p.ValidateHeader(); err != nil {
+		return err
+	}
 	if p.Amount.IsZero() || !IsRepresentableInCents(p.Amount) || p.Amount.Abs().GreaterThan(MaxMonetaryAmount) {
 		return fmt.Errorf("%w: amount: %w", ErrInvalidPendingActionPayload, ErrInvalidAmount)
-	}
-	if p.Confidence.IsNegative() || p.Confidence.GreaterThan(decimal.NewFromInt(1)) {
-		return fmt.Errorf("%w: confidence must be between 0 and 1", ErrInvalidPendingActionPayload)
 	}
 	return nil
 }
@@ -300,14 +308,12 @@ func DecodeCategorizePayload(action *PendingAction) (CategorizeTransactionPropos
 		return CategorizeTransactionProposal{}, err
 	}
 
-	confidence, hasConfidence, err := parseOptionalDecimal(action.Payload, "confidence")
+	confidence, hasConfidence, err := parseOptionalConfidence(action.Payload, "confidence")
 	if err != nil {
 		return CategorizeTransactionProposal{}, fmt.Errorf("%w: invalid confidence: %v", ErrInvalidPendingActionPayload, err)
 	}
-	if hasConfidence {
-		if confidence.IsNegative() || confidence.GreaterThan(decimal.NewFromInt(1)) {
-			return CategorizeTransactionProposal{}, fmt.Errorf("%w: confidence must be between 0 and 1", ErrInvalidPendingActionPayload)
-		}
+	if hasConfidence && !isValidConfidence(confidence) {
+		return CategorizeTransactionProposal{}, fmt.Errorf("%w: confidence must be between 0 and 1", ErrInvalidPendingActionPayload)
 	}
 
 	return CategorizeTransactionProposal{
@@ -345,7 +351,7 @@ func parseRequiredUUID(payload map[string]any, key string) (uuid.UUID, error) {
 }
 
 func parseOptionalMonetaryAmount(payload map[string]any, requirePositive bool) (decimal.Decimal, error) {
-	amount, hasAmount, err := parseOptionalDecimal(payload, "amount")
+	amount, hasAmount, err := parseOptionalExactDecimal(payload, "amount")
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("%w: amount: %w", ErrInvalidPendingActionPayload, ErrInvalidAmount)
 	}
@@ -370,7 +376,7 @@ func parseDecimalString(raw string) (decimal.Decimal, bool, error) {
 	return parsed, true, nil
 }
 
-func parseOptionalDecimal(payload map[string]any, key string) (decimal.Decimal, bool, error) {
+func parseOptionalExactDecimal(payload map[string]any, key string) (decimal.Decimal, bool, error) {
 	raw, exists := payload[key]
 	if !exists || raw == nil {
 		return decimal.Zero, false, nil
@@ -381,11 +387,6 @@ func parseOptionalDecimal(payload map[string]any, key string) (decimal.Decimal, 
 		return parseDecimalString(v)
 	case json.Number:
 		return parseDecimalString(v.String())
-	case float64:
-		if math.IsNaN(v) || math.IsInf(v, 0) {
-			return decimal.Zero, false, ErrInvalidAmount
-		}
-		return decimal.NewFromFloat(v), true, nil
 	case int:
 		return decimal.NewFromInt(int64(v)), true, nil
 	case int64:
@@ -395,6 +396,21 @@ func parseOptionalDecimal(payload map[string]any, key string) (decimal.Decimal, 
 	default:
 		return decimal.Zero, false, ErrInvalidAmount
 	}
+}
+
+func parseOptionalConfidence(payload map[string]any, key string) (decimal.Decimal, bool, error) {
+	raw, exists := payload[key]
+	if !exists || raw == nil {
+		return decimal.Zero, false, nil
+	}
+
+	if f, isFloat := raw.(float64); isFloat {
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return decimal.Zero, false, ErrInvalidAmount
+		}
+		return decimal.NewFromFloat(f), true, nil
+	}
+	return parseOptionalExactDecimal(payload, key)
 }
 
 func optionalPayloadString(payload map[string]any, key string) string {

@@ -129,9 +129,18 @@ func TestCategorizeTransactionProposal_ValidationAndHelpers(t *testing.T) {
 
 	t.Run("valid expense and income proposals pass and expose deterministic dedup key", func(t *testing.T) {
 		p := valid()
+		require.NoError(t, p.ValidateHeader())
 		require.NoError(t, p.Validate())
 		require.Equal(t, "categorize_11111111-1111-1111-1111-111111111111", p.DeduplicationKey())
 		require.False(t, p.NeedsHydration())
+
+		pIDOnly := domain.CategorizeTransactionProposal{
+			TransactionID: txID,
+			CategoryID:    catID,
+			Confidence:    decimal.RequireFromString("0.85"),
+		}
+		require.NoError(t, pIDOnly.ValidateHeader())
+		require.ErrorIs(t, pIDOnly.Validate(), domain.ErrInvalidAmount)
 
 		pIncome := valid()
 		pIncome.Amount = decimal.RequireFromString("5500.00")
@@ -391,28 +400,35 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 		require.ErrorIs(t, err, domain.ErrInvalidAmount)
 	})
 
-	t.Run("DecodeCategorizePayload supports legacy numeric DB rows and omitted amount", func(t *testing.T) {
-		legacyRaw := []byte(`{
+	t.Run("DecodeCategorizePayload supports legacy float confidence with exact amounts and rejects float64 currency", func(t *testing.T) {
+		legacyFloatConfRaw := []byte(`{
+			"transaction_id": "11111111-1111-1111-1111-111111111111",
+			"category_id": "22222222-2222-2222-2222-222222222222",
+			"confidence": 0.92,
+			"amount": "-42.50",
+			"reason": "Legacy float confidence row"
+		}`)
+
+		// Unmarshal via standard json (confidence -> float64, amount -> string)
+		var floatConfMap map[string]any
+		require.NoError(t, json.Unmarshal(legacyFloatConfRaw, &floatConfMap))
+		floatConfAct, err := domain.NewPendingAction(tenantID, "ai", domain.ActionTypeCategorizeTransaction, floatConfMap)
+		require.NoError(t, err)
+		gotFloatConf, err := domain.DecodeCategorizePayload(floatConfAct)
+		require.NoError(t, err)
+		require.True(t, decimal.RequireFromString("0.92").Equal(gotFloatConf.Confidence))
+		require.True(t, decimal.RequireFromString("-42.50").Equal(gotFloatConf.Amount))
+
+		// Unmarshal numeric JSON with UseNumber (produces json.Number)
+		legacyNumericRaw := []byte(`{
 			"transaction_id": "11111111-1111-1111-1111-111111111111",
 			"category_id": "22222222-2222-2222-2222-222222222222",
 			"confidence": 0.92,
 			"amount": -42.5,
-			"reason": "Legacy float row"
+			"reason": "UseNumber numeric row"
 		}`)
-
-		// Unmarshal via standard json (produces float64)
-		var floatMap map[string]any
-		require.NoError(t, json.Unmarshal(legacyRaw, &floatMap))
-		floatAct, err := domain.NewPendingAction(tenantID, "ai", domain.ActionTypeCategorizeTransaction, floatMap)
-		require.NoError(t, err)
-		gotFloat, err := domain.DecodeCategorizePayload(floatAct)
-		require.NoError(t, err)
-		require.True(t, decimal.RequireFromString("0.92").Equal(gotFloat.Confidence))
-		require.True(t, decimal.RequireFromString("-42.50").Equal(gotFloat.Amount))
-
-		// Unmarshal with UseNumber (produces json.Number)
 		var numMap map[string]any
-		dec := json.NewDecoder(bytes.NewReader(legacyRaw))
+		dec := json.NewDecoder(bytes.NewReader(legacyNumericRaw))
 		dec.UseNumber()
 		require.NoError(t, dec.Decode(&numMap))
 		numAct, err := domain.NewPendingAction(tenantID, "ai", domain.ActionTypeCategorizeTransaction, numMap)
@@ -421,6 +437,15 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, decimal.RequireFromString("0.92").Equal(gotNum.Confidence))
 		require.True(t, decimal.RequireFromString("-42.50").Equal(gotNum.Amount))
+
+		// Standard json.Unmarshal on numeric amount produces float64 and must fail closed
+		var floatAmtMap map[string]any
+		require.NoError(t, json.Unmarshal(legacyNumericRaw, &floatAmtMap))
+		floatAmtAct, err := domain.NewPendingAction(tenantID, "ai", domain.ActionTypeCategorizeTransaction, floatAmtMap)
+		require.NoError(t, err)
+		_, err = domain.DecodeCategorizePayload(floatAmtAct)
+		require.ErrorIs(t, err, domain.ErrInvalidPendingActionPayload)
+		require.ErrorIs(t, err, domain.ErrInvalidAmount)
 
 		// Integer confidence and omitted amount (old MCP proposal)
 		mcpAct, err := domain.NewPendingAction(tenantID, "mcp-server", domain.ActionTypeCategorizeTransaction, map[string]any{
@@ -446,20 +471,33 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 		gotInt64, err := domain.DecodeCategorizePayload(int64Act)
 		require.NoError(t, err)
 		require.True(t, decimal.NewFromInt(-100).Equal(gotInt64.Amount))
+
+		// Decimal amount
+		decAct, err := domain.NewPendingAction(tenantID, "ai", domain.ActionTypeCategorizeTransaction, map[string]any{
+			"transaction_id": txID.String(),
+			"category_id":    catID.String(),
+			"amount":         decimal.RequireFromString("-55.25"),
+		})
+		require.NoError(t, err)
+		gotDec, err := domain.DecodeCategorizePayload(decAct)
+		require.NoError(t, err)
+		require.True(t, decimal.RequireFromString("-55.25").Equal(gotDec.Amount))
 	})
 
 	t.Run("DecodeCategorizePayload fails closed on corrupt or invalid payloads", func(t *testing.T) {
 		cases := []struct {
-			name   string
-			action *domain.PendingAction
+			name        string
+			action      *domain.PendingAction
+			expectedErr error
 		}{
-			{name: "nil action", action: nil},
+			{name: "nil action", action: nil, expectedErr: domain.ErrInvalidPendingActionPayload},
 			{
 				name: "wrong action type",
 				action: &domain.PendingAction{
 					ActionType: domain.ActionTypeReconcileTransfer,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String()},
 				},
+				expectedErr: domain.ErrInvalidPendingActionPayload,
 			},
 			{
 				name: "nil payload",
@@ -467,6 +505,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    nil,
 				},
+				expectedErr: domain.ErrInvalidPendingActionPayload,
 			},
 			{
 				name: "missing transaction_id",
@@ -474,6 +513,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"category_id": catID.String()},
 				},
+				expectedErr: domain.ErrInvalidID,
 			},
 			{
 				name: "nil UUID transaction_id",
@@ -481,6 +521,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": uuid.Nil.String(), "category_id": catID.String()},
 				},
+				expectedErr: domain.ErrInvalidID,
 			},
 			{
 				name: "invalid transaction_id",
@@ -488,6 +529,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": "not-a-uuid", "category_id": catID.String()},
 				},
+				expectedErr: domain.ErrInvalidID,
 			},
 			{
 				name: "missing category_id",
@@ -495,6 +537,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String()},
 				},
+				expectedErr: domain.ErrInvalidID,
 			},
 			{
 				name: "nil UUID category_id",
@@ -502,6 +545,15 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": uuid.Nil.String()},
 				},
+				expectedErr: domain.ErrInvalidID,
+			},
+			{
+				name: "float64 amount",
+				action: &domain.PendingAction{
+					ActionType: domain.ActionTypeCategorizeTransaction,
+					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "amount": -42.5},
+				},
+				expectedErr: domain.ErrInvalidAmount,
 			},
 			{
 				name: "zero amount string",
@@ -509,6 +561,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "amount": "0.00"},
 				},
+				expectedErr: domain.ErrInvalidAmount,
 			},
 			{
 				name: "sub-cent amount",
@@ -516,6 +569,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "amount": "-10.125"},
 				},
+				expectedErr: domain.ErrInvalidAmount,
 			},
 			{
 				name: "overflow amount",
@@ -523,6 +577,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "amount": "10000000000000.00"},
 				},
+				expectedErr: domain.ErrInvalidAmount,
 			},
 			{
 				name: "non-numeric amount",
@@ -530,6 +585,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "amount": "abc"},
 				},
+				expectedErr: domain.ErrInvalidAmount,
 			},
 			{
 				name: "negative confidence",
@@ -537,6 +593,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "confidence": "-0.1"},
 				},
+				expectedErr: domain.ErrInvalidPendingActionPayload,
 			},
 			{
 				name: "confidence over 1",
@@ -544,6 +601,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "confidence": "1.01"},
 				},
+				expectedErr: domain.ErrInvalidPendingActionPayload,
 			},
 			{
 				name: "non-numeric confidence",
@@ -551,6 +609,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 					ActionType: domain.ActionTypeCategorizeTransaction,
 					Payload:    map[string]any{"transaction_id": txID.String(), "category_id": catID.String(), "confidence": true},
 				},
+				expectedErr: domain.ErrInvalidPendingActionPayload,
 			},
 		}
 
@@ -558,6 +617,7 @@ func TestCategorizePendingAction_CodecAndRoundTrip(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := domain.DecodeCategorizePayload(tc.action)
 				require.ErrorIs(t, err, domain.ErrInvalidPendingActionPayload)
+				require.ErrorIs(t, err, tc.expectedErr)
 			})
 		}
 	})
@@ -1089,6 +1149,18 @@ func TestReconcileTransferPendingAction_CodecAndRoundTrip(t *testing.T) {
 					},
 				},
 				expectedErr: domain.ErrInvalidID,
+			},
+			{
+				name: "float64 amount",
+				action: &domain.PendingAction{
+					ActionType: domain.ActionTypeReconcileTransfer,
+					Payload: map[string]any{
+						"outflow_transaction_id": outflowID.String(),
+						"inflow_transaction_id":  inflowID.String(),
+						"amount":                 42.5,
+					},
+				},
+				expectedErr: domain.ErrInvalidAmount,
 			},
 			{
 				name: "negative amount",
