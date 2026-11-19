@@ -54,6 +54,7 @@ type Detail struct {
 }
 
 // ProblemDetail is an alias for Detail to maintain RFC 7807 naming compatibility.
+//
 //nolint:revive // Alias preserves RFC 7807 naming
 type ProblemDetail = Detail
 
@@ -174,6 +175,18 @@ func FromDomainError(instance string, err error) Detail {
 		return NewConflict(instance, err.Error(), CodeConflict)
 	case errors.Is(err, domain.ErrDuplicateTransaction):
 		return NewConflict(instance, err.Error(), CodeDuplicateTransaction)
+	case errors.Is(err, domain.ErrPendingActionNotPending),
+		errors.Is(err, domain.ErrPendingActionNotApproved),
+		errors.Is(err, domain.ErrDuplicatePendingAction):
+		return NewConflict(instance, err.Error(), CodeConflict)
+	case errors.Is(err, domain.ErrInvalidPendingActionPayload):
+		return NewValidationFailed(instance, err.Error(), []InvalidParam{
+			{Name: "payload", Reason: err.Error()},
+		})
+	case errors.Is(err, domain.ErrUnsupportedPendingActionType):
+		return NewValidationFailed(instance, err.Error(), []InvalidParam{
+			{Name: "action_type", Reason: err.Error()},
+		})
 	case errors.Is(err, domain.ErrInvalidAmount):
 		return NewValidationFailed(instance, err.Error(), []InvalidParam{
 			{Name: "amount", Reason: "must be a non-zero signed decimal value matching transaction type"},

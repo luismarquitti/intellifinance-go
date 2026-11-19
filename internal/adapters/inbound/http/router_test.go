@@ -101,6 +101,33 @@ func (q *dummyTaskQueue) Close() error {
 	return nil
 }
 
+type dummyPendingActionService struct{}
+
+func (d *dummyPendingActionService) ListPending(_ context.Context, _ uuid.UUID) ([]*domain.PendingAction, error) {
+	return []*domain.PendingAction{}, nil
+}
+func (d *dummyPendingActionService) LoadPendingIndex(_ context.Context, _ uuid.UUID) (*domain.PendingActionIndex, error) {
+	return domain.NewPendingActionIndex(nil), nil
+}
+func (d *dummyPendingActionService) ProposeCategorization(_ context.Context, _ uuid.UUID, _ string, _ domain.CategorizeTransactionProposal) (*domain.PendingAction, error) {
+	return nil, nil
+}
+func (d *dummyPendingActionService) ProposeTransferReconciliation(_ context.Context, _ uuid.UUID, _ string, _ domain.ReconcileTransferProposal) (*domain.PendingAction, error) {
+	return nil, nil
+}
+func (d *dummyPendingActionService) Approve(_ context.Context, _, actionID, _ uuid.UUID) (*domain.PendingAction, error) {
+	return &domain.PendingAction{ID: actionID, Status: domain.ActionStatusExecuted}, nil
+}
+func (d *dummyPendingActionService) Reject(_ context.Context, _, actionID, _ uuid.UUID, _ string) (*domain.PendingAction, error) {
+	return &domain.PendingAction{ID: actionID, Status: domain.ActionStatusRejected}, nil
+}
+func (d *dummyPendingActionService) ApproveBatch(_ context.Context, _, _ uuid.UUID, _ domain.PendingActionSelector) (*ports.BatchDecisionResult, error) {
+	return &ports.BatchDecisionResult{Errors: []string{}}, nil
+}
+func (d *dummyPendingActionService) RejectBatch(_ context.Context, _, _ uuid.UUID, _ domain.PendingActionSelector, _ string) (*ports.BatchDecisionResult, error) {
+	return &ports.BatchDecisionResult{Errors: []string{}}, nil
+}
+
 func TestRouter_E2E(t *testing.T) {
 	t.Parallel()
 
@@ -120,6 +147,7 @@ func TestRouter_E2E(t *testing.T) {
 		AccountService:            &dummyAccountService{},
 		CategoryService:           &dummyCategoryService{},
 		TransactionService:        &dummyTransactionService{},
+		PendingActionService:      &dummyPendingActionService{},
 		OpenFinanceTenantResolver: &dummyTenantResolver{tenantID: tenantID},
 		TaskQueue:                 &dummyTaskQueue{},
 		OpenFinanceWebhookSecret:  webhookSecret,
@@ -245,6 +273,17 @@ func TestRouter_E2E(t *testing.T) {
 
 		if rec.Code != http.StatusUnauthorized {
 			t.Fatalf("expected status 401 Unauthorized, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("PendingActionService routes are mounted at /api/v1/pending-actions", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/pending-actions", nil)
+		req.Header.Set(middleware.HeaderTenantID, tenantID.String())
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status 200 OK, got %d: %s", rec.Code, rec.Body.String())
 		}
 	})
 }

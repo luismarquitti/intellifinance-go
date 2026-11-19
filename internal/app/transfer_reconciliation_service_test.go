@@ -2,12 +2,14 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/luismarquitti/intellifinance-go/internal/app"
 	"github.com/luismarquitti/intellifinance-go/internal/domain"
+	"github.com/luismarquitti/intellifinance-go/internal/ports"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,8 +80,9 @@ func TestTransferReconciliationService_ScanAndPropose(t *testing.T) {
 	txRepo := newMockTxRepo(accRepo)
 	invRepo := newMockInvoiceRepo()
 	actionRepo := newMockPendingActionRepo()
+	pendingSvc := app.NewPendingActionService(actionRepo, txRepo, nil, accRepo, invRepo, nil)
 
-	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, actionRepo)
+	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, pendingSvc)
 
 	// Create Accounts: 2 checking, 1 credit card
 	checkingA, _ := domain.NewAccount(tenantID, userID, "Itaú Corrente", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
@@ -188,8 +191,9 @@ func TestTransferReconciliationService_SkipsPendingCardOutflowsAndPaidInvoices(t
 	txRepo := newMockTxRepo(accRepo)
 	invRepo := newMockInvoiceRepo()
 	actionRepo := newMockPendingActionRepo()
+	pendingSvc := app.NewPendingActionService(actionRepo, txRepo, nil, accRepo, invRepo, nil)
 
-	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, actionRepo)
+	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, pendingSvc)
 
 	checkingA, _ := domain.NewAccount(tenantID, userID, "Itau Corrente", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
 	require.NoError(t, accRepo.Create(ctx, checkingA))
@@ -280,4 +284,31 @@ func TestTransferReconciliationService_SkipsPendingCardOutflowsAndPaidInvoices(t
 	result, err := reconciler.ScanAndPropose(ctx, tenantID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ProposedActionsCount, "must skip pending transactions, card purchases, and already-paid invoices")
+}
+
+type failingListInvoiceRepo struct {
+	ports.InvoiceRepository
+	listErr error
+}
+
+func (f *failingListInvoiceRepo) List(_ context.Context, _ uuid.UUID, _ *uuid.UUID) ([]*domain.CreditCardInvoice, error) {
+	return nil, f.listErr
+}
+
+func TestTransferReconciliationService_PropagatesInvoiceListError(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+
+	accRepo := newMockAccountRepo()
+	txRepo := newMockTxRepo(accRepo)
+	actionRepo := newMockPendingActionRepo()
+	invErr := errors.New("invoice database unavailable")
+	invRepo := &failingListInvoiceRepo{InvoiceRepository: newMockInvoiceRepo(), listErr: invErr}
+	pendingSvc := app.NewPendingActionService(actionRepo, txRepo, nil, accRepo, invRepo, nil)
+
+	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, pendingSvc)
+
+	_, err := reconciler.ScanAndPropose(ctx, tenantID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, invErr)
 }

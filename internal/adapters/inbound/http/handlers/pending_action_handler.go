@@ -1,10 +1,9 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -18,318 +17,210 @@ import (
 
 // PendingActionHandler manages Human-in-the-Loop approval workflows for AI/MCP mutations.
 type PendingActionHandler struct {
-	repo            ports.PendingActionRepository
-	txService       ports.TransactionService
-	transferService ports.TransferService
-	invoiceRepo     ports.InvoiceRepository
+	service ports.PendingActionService
 }
 
 // NewPendingActionHandler constructs a new PendingActionHandler.
-func NewPendingActionHandler(
-	repo ports.PendingActionRepository,
-	txService ports.TransactionService,
-	transferService ports.TransferService,
-	invoiceRepo ports.InvoiceRepository,
-) *PendingActionHandler {
-	return &PendingActionHandler{
-		repo:            repo,
-		txService:       txService,
-		transferService: transferService,
-		invoiceRepo:     invoiceRepo,
-	}
+func NewPendingActionHandler(service ports.PendingActionService) *PendingActionHandler {
+	return &PendingActionHandler{service: service}
 }
 
 // ListPending handles GET /pending-actions.
 func (h *PendingActionHandler) ListPending(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	tenantID, ok := h.requireTenantAndService(w, r)
 	if !ok {
-		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
 		return
 	}
 
-	actions, err := h.repo.ListPending(r.Context(), tenantID)
+	actions, err := h.service.ListPending(r.Context(), tenantID)
 	if err != nil {
-		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed to query pending actions."))
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
 	if actions == nil {
 		actions = []*domain.PendingAction{}
 	}
-	_ = json.NewEncoder(w).Encode(actions)
+	renderJSON(w, http.StatusOK, actions)
 }
 
 // Approve handles POST /pending-actions/{id}/approve.
 func (h *PendingActionHandler) Approve(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	tenantID, ok := h.requireTenantAndService(w, r)
 	if !ok {
-		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	actionID, err := uuid.Parse(idStr)
-	if err != nil {
-		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid action ID format."))
+	actionID, ok := parseActionID(w, r)
+	if !ok {
 		return
 	}
 
 	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
-	if decidingUserID == uuid.Nil {
-		decidingUserID = uuid.New()
-	}
-
-	action, err := h.repo.FindByID(r.Context(), tenantID, actionID)
+	executed, err := h.service.Approve(r.Context(), tenantID, actionID, decidingUserID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			problem.Render(w, r, problem.NewNotFound(r.URL.Path, "Pending action not found."))
-			return
-		}
-		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed to load pending action."))
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
 		return
 	}
 
-	if action.Status != domain.ActionStatusPending {
-		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Action is not in pending status."))
-		return
+	status := domain.ActionStatusExecuted
+	if executed != nil {
+		status = executed.Status
 	}
-
-	if err := h.executeApproval(r.Context(), tenantID, action, decidingUserID); err != nil {
-		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed executing approved action: "+err.Error()))
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	renderJSON(w, http.StatusOK, map[string]any{
 		"id":      actionID,
-		"status":  domain.ActionStatusExecuted,
+		"status":  status,
 		"message": "Action approved and executed successfully.",
 	})
 }
 
-// ApproveBatch handles POST /pending-actions/batch-approve.
-func (h *PendingActionHandler) ApproveBatch(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := middleware.TenantIDFromContext(r.Context())
-	if !ok {
-		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
-		return
-	}
-
-	var req dto.BatchApproveRequest
-	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
-	}
-
-	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
-	if decidingUserID == uuid.Nil {
-		decidingUserID = uuid.New()
-	}
-
-	// 1. Identify actions to approve
-	allPending, err := h.repo.ListPending(r.Context(), tenantID)
-	if err != nil {
-		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed listing pending actions: "+err.Error()))
-		return
-	}
-
-	selectedMap := make(map[uuid.UUID]bool)
-	for _, id := range req.ActionIDs {
-		selectedMap[id] = true
-	}
-
-	var toApprove []*domain.PendingAction
-	for _, act := range allPending {
-		if req.All {
-			if req.ActionType == nil || act.ActionType == *req.ActionType {
-				toApprove = append(toApprove, act)
-			}
-		} else if selectedMap[act.ID] {
-			toApprove = append(toApprove, act)
-		}
-	}
-
-	resp := dto.BatchDecisionResponse{
-		ProcessedCount: len(toApprove),
-		Errors:         []string{},
-	}
-
-	for _, act := range toApprove {
-		if err := h.executeApproval(r.Context(), tenantID, act, decidingUserID); err != nil {
-			resp.FailedCount++
-			resp.Errors = append(resp.Errors, fmt.Sprintf("action %s: %v", act.ID, err))
-		} else {
-			resp.ApprovedCount++
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
-}
-
-// RejectBatch handles POST /pending-actions/batch-reject.
-func (h *PendingActionHandler) RejectBatch(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := middleware.TenantIDFromContext(r.Context())
-	if !ok {
-		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
-		return
-	}
-
-	var req dto.BatchRejectRequest
-	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
-	}
-
-	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
-	if decidingUserID == uuid.Nil {
-		decidingUserID = uuid.New()
-	}
-
-	allPending, err := h.repo.ListPending(r.Context(), tenantID)
-	if err != nil {
-		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed listing pending actions: "+err.Error()))
-		return
-	}
-
-	selectedMap := make(map[uuid.UUID]bool)
-	for _, id := range req.ActionIDs {
-		selectedMap[id] = true
-	}
-
-	var reasonPtr *string
-	if req.Reason != "" {
-		reasonPtr = &req.Reason
-	}
-
-	resp := dto.BatchDecisionResponse{
-		Errors: []string{},
-	}
-
-	for _, act := range allPending {
-		if req.All || selectedMap[act.ID] {
-			resp.ProcessedCount++
-			if err := h.repo.UpdateDecision(r.Context(), tenantID, act.ID, domain.ActionStatusRejected, &decidingUserID, reasonPtr); err != nil {
-				resp.FailedCount++
-				resp.Errors = append(resp.Errors, fmt.Sprintf("action %s: %v", act.ID, err))
-			} else {
-				resp.RejectedCount++
-			}
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(resp)
-}
-
-func (h *PendingActionHandler) executeApproval(
-	ctx context.Context,
-	tenantID uuid.UUID,
-	action *domain.PendingAction,
-	decidingUserID uuid.UUID,
-) error {
-	// 1. Reconcile transfer proposal
-	if action.ActionType == domain.ActionTypeReconcileTransfer && h.transferService != nil {
-		outflowStr, _ := action.Payload["outflow_transaction_id"].(string)
-		inflowStr, _ := action.Payload["inflow_transaction_id"].(string)
-		outflowID, errOut := uuid.Parse(outflowStr)
-		inflowID, errIn := uuid.Parse(inflowStr)
-		if errOut != nil || errIn != nil {
-			return errors.New("invalid transaction IDs in action payload")
-		}
-
-		if _, _, err := h.transferService.ConfirmTransfer(ctx, tenantID, outflowID, inflowID); err != nil {
-			return fmt.Errorf("failed confirming reconciled transfer: %w", err)
-		}
-
-		// Mark invoice as paid if invoice_id is present
-		if invIDStr, ok := action.Payload["invoice_id"].(string); ok && invIDStr != "" && h.invoiceRepo != nil {
-			if invID, pErr := uuid.Parse(invIDStr); pErr == nil {
-				if inv, getErr := h.invoiceRepo.FindByID(ctx, tenantID, invID); getErr == nil && inv != nil {
-					inv.MarkAsPaid()
-					_ = h.invoiceRepo.Save(ctx, inv)
-				}
-			}
-		}
-	}
-
-	// 2. Categorize transaction proposal
-	if action.ActionType == domain.ActionTypeCategorizeTransaction && h.txService != nil {
-		if txIDStr, ok := action.Payload["transaction_id"].(string); ok {
-			if txID, parseErr := uuid.Parse(txIDStr); parseErr == nil {
-				var catID *uuid.UUID
-				if catIDStr, ok := action.Payload["category_id"].(string); ok && catIDStr != "" {
-					if cID, pErr := uuid.Parse(catIDStr); pErr == nil {
-						catID = &cID
-					}
-				}
-				tx, getErr := h.txService.GetByID(ctx, tenantID, txID)
-				if getErr == nil && tx != nil {
-					tx.CategoryID = catID
-					tx.IsAICategorized = true
-					tx.IsManuallyVerified = true
-					if updateErr := h.txService.Update(ctx, tx); updateErr != nil {
-						return fmt.Errorf("failed applying approved categorization: %w", updateErr)
-					}
-				}
-			}
-		}
-	}
-
-	if err := h.repo.UpdateDecision(ctx, tenantID, action.ID, domain.ActionStatusApproved, &decidingUserID, nil); err != nil {
-		return fmt.Errorf("failed updating action approval decision: %w", err)
-	}
-
-	return h.repo.MarkExecuted(ctx, tenantID, action.ID)
-}
-
 // Reject handles POST /pending-actions/{id}/reject.
 func (h *PendingActionHandler) Reject(w http.ResponseWriter, r *http.Request) {
-	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	tenantID, ok := h.requireTenantAndService(w, r)
 	if !ok {
-		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	actionID, err := uuid.Parse(idStr)
-	if err != nil {
-		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid action ID format."))
+	actionID, ok := parseActionID(w, r)
+	if !ok {
 		return
-	}
-
-	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
-	if decidingUserID == uuid.Nil {
-		decidingUserID = uuid.New()
 	}
 
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
-
-	var reasonPtr *string
-	if req.Reason != "" {
-		reasonPtr = &req.Reason
-	}
-
-	if err := h.repo.UpdateDecision(r.Context(), tenantID, actionID, domain.ActionStatusRejected, &decidingUserID, reasonPtr); err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			problem.Render(w, r, problem.NewNotFound(r.URL.Path, "Pending action not found or already decided."))
-			return
-		}
-		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Failed updating action rejection."))
+	if decErr := decodeOptionalJSON(r, &req); decErr != nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
+	rejected, err := h.service.Reject(r.Context(), tenantID, actionID, decidingUserID, req.Reason)
+	if err != nil {
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
+		return
+	}
+
+	status := domain.ActionStatusRejected
+	if rejected != nil {
+		status = rejected.Status
+	}
+	renderJSON(w, http.StatusOK, map[string]any{
 		"id":      actionID,
-		"status":  domain.ActionStatusRejected,
+		"status":  status,
 		"message": "Action rejected.",
 	})
+}
+
+// ApproveBatch handles POST /pending-actions/batch-approve.
+func (h *PendingActionHandler) ApproveBatch(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.requireTenantAndService(w, r)
+	if !ok {
+		return
+	}
+
+	var req dto.BatchApproveRequest
+	if decErr := decodeOptionalJSON(r, &req); decErr != nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
+		return
+	}
+
+	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
+	selector := domain.PendingActionSelector{
+		ActionIDs:  req.ActionIDs,
+		All:        req.All,
+		ActionType: req.ActionType,
+	}
+
+	result, err := h.service.ApproveBatch(r.Context(), tenantID, decidingUserID, selector)
+	if err != nil {
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
+		return
+	}
+
+	renderJSON(w, http.StatusOK, toBatchDecisionResponse(result))
+}
+
+// RejectBatch handles POST /pending-actions/batch-reject.
+func (h *PendingActionHandler) RejectBatch(w http.ResponseWriter, r *http.Request) {
+	tenantID, ok := h.requireTenantAndService(w, r)
+	if !ok {
+		return
+	}
+
+	var req dto.BatchRejectRequest
+	if decErr := decodeOptionalJSON(r, &req); decErr != nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid JSON payload in request body."))
+		return
+	}
+
+	decidingUserID, _ := middleware.UserIDFromContext(r.Context())
+	selector := domain.PendingActionSelector{
+		ActionIDs: req.ActionIDs,
+		All:       req.All,
+	}
+
+	result, err := h.service.RejectBatch(r.Context(), tenantID, decidingUserID, selector, req.Reason)
+	if err != nil {
+		problem.Render(w, r, problem.FromDomainError(r.URL.Path, err))
+		return
+	}
+
+	renderJSON(w, http.StatusOK, toBatchDecisionResponse(result))
+}
+
+func (h *PendingActionHandler) requireTenantAndService(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	tenantID, ok := middleware.TenantIDFromContext(r.Context())
+	if !ok {
+		problem.Render(w, r, problem.NewUnauthorized(r.URL.Path, "Missing tenant context."))
+		return uuid.Nil, false
+	}
+	if h == nil || h.service == nil {
+		problem.Render(w, r, problem.NewInternalError(r.URL.Path, "Pending action service is not configured."))
+		return uuid.Nil, false
+	}
+	return tenantID, true
+}
+
+func parseActionID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	actionID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil || actionID == uuid.Nil {
+		problem.Render(w, r, problem.NewBadRequest(r.URL.Path, "Invalid action ID format."))
+		return uuid.Nil, false
+	}
+	return actionID, true
+}
+
+func decodeOptionalJSON(r *http.Request, dst any) error {
+	if r.Body == nil {
+		return nil
+	}
+	err := json.NewDecoder(r.Body).Decode(dst)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
+}
+
+func toBatchDecisionResponse(result *ports.BatchDecisionResult) dto.BatchDecisionResponse {
+	if result == nil {
+		return dto.BatchDecisionResponse{Errors: []string{}}
+	}
+	errs := result.Errors
+	if errs == nil {
+		errs = []string{}
+	}
+	return dto.BatchDecisionResponse{
+		ProcessedCount: result.ProcessedCount,
+		ApprovedCount:  result.ApprovedCount,
+		RejectedCount:  result.RejectedCount,
+		FailedCount:    result.FailedCount,
+		Errors:         errs,
+	}
+}
+
+func renderJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
 }

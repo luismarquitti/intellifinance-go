@@ -35,7 +35,7 @@ func (f *fakeOpenFinanceConnector) FetchBills(_ context.Context, accountID strin
 func (f *fakeOpenFinanceConnector) FetchTransactions(_ context.Context, accountID string, _, _ time.Time) ([]ports.ExternalTransaction, error) {
 	return f.transactions[accountID], nil
 }
-func (f *fakeOpenFinanceConnector) TriggerSync(context.Context, string) error    { return nil }
+func (f *fakeOpenFinanceConnector) TriggerSync(context.Context, string) error      { return nil }
 func (f *fakeOpenFinanceConnector) DeleteConnection(context.Context, string) error { return nil }
 
 type mockSnapshotRepo struct {
@@ -161,8 +161,9 @@ func TestOpenFinanceSyncService_SyncItem_EndToEndAndIdempotentResync(t *testing.
 		},
 	}
 
-	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, actionRepo)
-	matcher := app.NewCategoryMatcher(txRepo, catRepo, actionRepo)
+	pendingSvc := app.NewPendingActionService(actionRepo, txRepo, catRepo, accRepo, invRepo, nil)
+	reconciler := app.NewTransferReconciliationService(txRepo, accRepo, invRepo, pendingSvc)
+	matcher := app.NewCategoryMatcher(txRepo, catRepo, pendingSvc)
 	var syncSvc ports.OpenFinanceSyncService = app.NewOpenFinanceSyncService(connector, accRepo, txRepo, invRepo, snapRepo, reconciler, matcher, nil)
 
 	// 1. First sync on Nov 16: tx-chk-future (Nov 20) is future-dated -> PENDING, excluded from ledger balance.

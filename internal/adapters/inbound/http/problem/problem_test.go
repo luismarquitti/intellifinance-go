@@ -3,6 +3,7 @@ package problem_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -62,6 +63,7 @@ func TestFromDomainError(t *testing.T) {
 		err        error
 		wantStatus int
 		wantCode   string
+		wantParam  string
 	}{
 		{
 			name:       "NotFound",
@@ -94,6 +96,45 @@ func TestFromDomainError(t *testing.T) {
 			wantCode:   problem.CodeValidationFailed,
 		},
 		{
+			name:       "PendingActionNotPending",
+			err:        domain.ErrPendingActionNotPending,
+			wantStatus: http.StatusConflict,
+			wantCode:   problem.CodeConflict,
+		},
+		{
+			name:       "PendingActionNotApproved",
+			err:        domain.ErrPendingActionNotApproved,
+			wantStatus: http.StatusConflict,
+			wantCode:   problem.CodeConflict,
+		},
+		{
+			name:       "DuplicatePendingAction",
+			err:        domain.ErrDuplicatePendingAction,
+			wantStatus: http.StatusConflict,
+			wantCode:   problem.CodeConflict,
+		},
+		{
+			name:       "InvalidPendingActionPayload",
+			err:        domain.ErrInvalidPendingActionPayload,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantCode:   problem.CodeValidationFailed,
+			wantParam:  "payload",
+		},
+		{
+			name:       "WrappedInvalidPendingActionPayloadAmount",
+			err:        fmt.Errorf("%w: amount: %w", domain.ErrInvalidPendingActionPayload, domain.ErrInvalidAmount),
+			wantStatus: http.StatusUnprocessableEntity,
+			wantCode:   problem.CodeValidationFailed,
+			wantParam:  "payload",
+		},
+		{
+			name:       "UnsupportedPendingActionType",
+			err:        domain.ErrUnsupportedPendingActionType,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantCode:   problem.CodeValidationFailed,
+			wantParam:  "action_type",
+		},
+		{
 			name:       "UnknownError",
 			err:        errors.New("something crashed"),
 			wantStatus: http.StatusInternalServerError,
@@ -110,6 +151,11 @@ func TestFromDomainError(t *testing.T) {
 			}
 			if p.Code != tc.wantCode {
 				t.Errorf("expected code %s, got %s", tc.wantCode, p.Code)
+			}
+			if tc.wantParam != "" {
+				if len(p.InvalidParams) == 0 || p.InvalidParams[0].Name != tc.wantParam {
+					t.Errorf("expected invalid param %q, got %+v", tc.wantParam, p.InvalidParams)
+				}
 			}
 		})
 	}

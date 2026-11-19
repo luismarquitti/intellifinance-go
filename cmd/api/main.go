@@ -110,8 +110,9 @@ func main() {
 	categoryService := app.NewCategoryService(categoryRepo)
 	transactionService := app.NewTransactionService(transactionRepo)
 	transferService := app.NewTransferService(transferRepo)
-	transferReconcileService := app.NewTransferReconciliationService(transactionRepo, accountRepo, invoiceRepo, pendingActionRepo)
-	categoryMatcher := app.NewCategoryMatcher(transactionRepo, categoryRepo, pendingActionRepo)
+	pendingActionService := app.NewPendingActionService(pendingActionRepo, transactionRepo, categoryRepo, accountRepo, invoiceRepo, transferService)
+	transferReconcileService := app.NewTransferReconciliationService(transactionRepo, accountRepo, invoiceRepo, pendingActionService)
+	categoryMatcher := app.NewCategoryMatcher(transactionRepo, categoryRepo, pendingActionService)
 	csvIngestionService := app.NewCSVIngestionService(csvParser, transactionRepo, accountRepo)
 	invoiceService := app.NewInvoiceService(invoiceRepo, transactionRepo, accountRepo)
 
@@ -132,10 +133,9 @@ func main() {
 		TransferService:          transferService,
 		TransferReconcileService: transferReconcileService,
 		CategoryRuleService:      categoryMatcher,
-		PendingActionRepo:        pendingActionRepo,
+		PendingActionService:     pendingActionService,
 		CSVIngestionService:      csvIngestionService,
 		InvoiceService:           invoiceService,
-		InvoiceRepo:              invoiceRepo,
 		AppConfig:                cfg,
 		Logger:                   logger,
 		CORSOptions:              &corsOpts,

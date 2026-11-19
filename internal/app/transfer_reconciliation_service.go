@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -15,10 +16,10 @@ var _ ports.TransferReconciliationService = (*TransferReconciliationService)(nil
 
 // TransferReconciliationService scans for mutual cash movements and proposes HITL reconciliation actions.
 type TransferReconciliationService struct {
-	txRepo            ports.TransactionRepository
-	accountRepo       ports.AccountRepository
-	invRepo           ports.InvoiceRepository
-	pendingActionRepo ports.PendingActionRepository
+	txRepo           ports.TransactionRepository
+	accountRepo      ports.AccountRepository
+	invRepo          ports.InvoiceRepository
+	pendingActionSvc ports.PendingActionService
 }
 
 // NewTransferReconciliationService constructs a new TransferReconciliationService instance.
@@ -26,13 +27,13 @@ func NewTransferReconciliationService(
 	txRepo ports.TransactionRepository,
 	accountRepo ports.AccountRepository,
 	invRepo ports.InvoiceRepository,
-	pendingActionRepo ports.PendingActionRepository,
+	pendingActionSvc ports.PendingActionService,
 ) *TransferReconciliationService {
 	return &TransferReconciliationService{
-		txRepo:            txRepo,
-		accountRepo:       accountRepo,
-		invRepo:           invRepo,
-		pendingActionRepo: pendingActionRepo,
+		txRepo:           txRepo,
+		accountRepo:      accountRepo,
+		invRepo:          invRepo,
+		pendingActionSvc: pendingActionSvc,
 	}
 }
 
@@ -40,6 +41,12 @@ func NewTransferReconciliationService(
 func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tenantID uuid.UUID) (*ports.ReconciliationScanResult, error) {
 	if tenantID == uuid.Nil {
 		return nil, domain.ErrInvalidID
+	}
+	if s == nil || s.pendingActionSvc == nil {
+		return nil, errors.New("pending action service is required")
+	}
+	if s.accountRepo == nil || s.txRepo == nil {
+		return nil, errors.New("account and transaction repositories are required")
 	}
 
 	// 1. Load accounts to identify types and names
@@ -52,25 +59,10 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		accMap[acc.ID] = acc
 	}
 
-	// 2. Load existing pending actions to avoid duplicate proposals
-	pendingActions, err := s.pendingActionRepo.ListPending(ctx, tenantID)
+	// 2. Load existing pending actions index to avoid duplicate proposals
+	pendingIdx, err := s.pendingActionSvc.LoadPendingIndex(ctx, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list pending actions: %w", err)
-	}
-	existingProposedTxIDs := make(map[uuid.UUID]bool)
-	for _, act := range pendingActions {
-		if act.ActionType == domain.ActionTypeReconcileTransfer {
-			if outStr, ok := act.Payload["outflow_transaction_id"].(string); ok {
-				if id, pErr := uuid.Parse(outStr); pErr == nil {
-					existingProposedTxIDs[id] = true
-				}
-			}
-			if inStr, ok := act.Payload["inflow_transaction_id"].(string); ok {
-				if id, pErr := uuid.Parse(inStr); pErr == nil {
-					existingProposedTxIDs[id] = true
-				}
-			}
-		}
+		return nil, fmt.Errorf("failed to load pending actions index: %w", err)
 	}
 
 	// 3. Load transactions (up to 1000 recent)
@@ -88,7 +80,7 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 		if tx.Status != domain.TransactionStatusCompleted || tx.TransferPeerTransactionID != nil {
 			continue
 		}
-		if existingProposedTxIDs[tx.ID] {
+		if pendingIdx.HasTransferLeg(tx.ID) {
 			continue
 		}
 
@@ -104,7 +96,13 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 	}
 
 	// 4. Load invoices for Invoice Settlement detection
-	invoices, _ := s.invRepo.List(ctx, tenantID, nil)
+	var invoices []*domain.CreditCardInvoice
+	if s.invRepo != nil {
+		invoices, err = s.invRepo.List(ctx, tenantID, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list invoices: %w", err)
+		}
+	}
 
 	// Prioritize Liquid Account outflows whose description matches Invoice Settlement keywords
 	// so generic same-amount debits do not preempt explicit card-payment outflows.
@@ -115,7 +113,7 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 	})
 
 	pairedInflows := make(map[uuid.UUID]bool)
-	var proposedActions []*domain.PendingAction
+	proposedActions := make([]*domain.PendingAction, 0)
 
 	// 5. Heuristic matching
 	for _, out := range outflows {
@@ -162,21 +160,10 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 			continue
 		}
 
-		srcName := "Conta de Origem"
-		if srcAcc != nil {
-			srcName = srcAcc.Name
-		}
-		dstName := "Conta de Destino"
-		if dstAcc != nil {
-			dstName = dstAcc.Name
-		}
-
-		reconciliationType := "INTERNAL_TRANSFER"
 		var matchedInvoiceID *uuid.UUID
 
 		// Check if destination is Credit Card (Invoice Settlement)
 		if dstAcc != nil && dstAcc.Type == domain.AccountTypeCreditCard {
-			reconciliationType = "BILL_PAYMENT"
 			matchedInv, hasInvoicesForCard := domain.MatchInvoiceForSettlementLeg(
 				invoices,
 				dstAcc.ID,
@@ -194,46 +181,21 @@ func (s *TransferReconciliationService) ScanAndPropose(ctx context.Context, tena
 			}
 		}
 
-		pairedInflows[bestInflow.ID] = true
-
-		var desc string
-		if reconciliationType == "BILL_PAYMENT" {
-			desc = fmt.Sprintf("Pagamento de fatura do %s (R$ %s) a partir de %s", dstName, absOutAmount.StringFixed(2), srcName)
-		} else {
-			desc = fmt.Sprintf("Transferência de R$ %s de %s para %s", absOutAmount.StringFixed(2), srcName, dstName)
-		}
-
-		payload := map[string]any{
-			"outflow_transaction_id":   out.ID.String(),
-			"inflow_transaction_id":    bestInflow.ID.String(),
-			"amount":                   absOutAmount.StringFixed(2),
-			"source_account_id":        out.AccountID.String(),
-			"source_account_name":      srcName,
-			"destination_account_id":   bestInflow.AccountID.String(),
-			"destination_account_name": dstName,
-			"outflow_date":             out.Date.Format("2006-01-02"),
-			"inflow_date":              bestInflow.Date.Format("2006-01-02"),
-			"reconciliation_type":      reconciliationType,
-			"description":              desc,
-		}
-		if matchedInvoiceID != nil {
-			payload["invoice_id"] = matchedInvoiceID.String()
-		}
-
-		action, actErr := domain.NewPendingAction(
-			tenantID,
-			"transfer-reconciler",
-			domain.ActionTypeReconcileTransfer,
-			payload,
-		)
-		if actErr != nil {
+		proposal, propErr := domain.NewReconcileTransferProposalFromEntities(out, bestInflow, srcAcc, dstAcc, matchedInvoiceID)
+		if propErr != nil {
 			continue
 		}
 
-		if saveErr := s.pendingActionRepo.Save(ctx, action); saveErr != nil {
+		action, saveErr := s.pendingActionSvc.ProposeTransferReconciliation(ctx, tenantID, "transfer-reconciler", proposal)
+		if saveErr != nil {
+			if errors.Is(saveErr, domain.ErrDuplicatePendingAction) {
+				continue
+			}
 			return nil, fmt.Errorf("failed saving reconciliation pending action: %w", saveErr)
 		}
 
+		pairedInflows[bestInflow.ID] = true
+		pendingIdx.Record(action)
 		proposedActions = append(proposedActions, action)
 	}
 
