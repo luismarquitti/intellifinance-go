@@ -4,9 +4,9 @@
 
 **Blocked by:** 01 (Domain Pending Action Typed Proposals, Codecs, and Deduplication Index)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Define `ports.PendingActionService` and `ports.BatchDecisionResult` in `internal/ports/pending_action_service.go`
-- [ ] Implement `app.PendingActionService` in `internal/app/pending_action_service.go` with `ListPending`, `LoadPendingIndex`, `ProposeCategorization` (including automatic `Transaction`/`Category` lookup and display hydration when snapshot fields are omitted), `ProposeTransferReconciliation`, `Approve`, `Reject`, `ApproveBatch`, and `RejectBatch`
-- [ ] Ensure `Approve` fails closed on any payload decode, lookup, transfer confirmation, or `Invoice` save error (leaving the `Pending Action` in `PENDING` status), applies `inv.ApplySettlement` + `ComputeCreditCardLiabilityDelta` on `Invoice Settlement` approvals, and rejects unsupported action types with `domain.ErrUnsupportedPendingActionType`
-- [ ] Write behavioral tests in `internal/app/pending_action_service_test.go` across the `ports.PendingActionService` seam using in-memory repository adapters (covering hydration, deduplication, categorization approval, transfer + invoice settlement approval, failure rollback/preservation of `PENDING` state, and batch decisions)
+- [x] Define `ports.PendingActionService` and `ports.BatchDecisionResult` in `internal/ports/pending_action_service.go`
+- [x] Implement `app.PendingActionService` in `internal/app/pending_action_service.go` with `ListPending`, `LoadPendingIndex`, `ProposeCategorization` (including automatic `Transaction`/`Category` lookup and display hydration when snapshot fields are omitted), `ProposeTransferReconciliation`, `Approve`, `Reject`, `ApproveBatch`, and `RejectBatch`
+- [x] Ensure `Approve` fails closed on any payload decode, lookup, transfer confirmation, or `Invoice` save error (leaving the `Pending Action` in `PENDING` status), applies `inv.ApplySettlement` + `ComputeCreditCardLiabilityDelta` on `Invoice Settlement` approvals, and rejects unsupported action types with `domain.ErrUnsupportedPendingActionType`
+- [x] Write behavioral tests in `internal/app/pending_action_service_test.go` across the `ports.PendingActionService` seam using in-memory repository adapters (covering hydration, deduplication, categorization approval, transfer + invoice settlement approval, failure rollback/preservation of `PENDING` state, and batch decisions)
