@@ -959,12 +959,12 @@ func TestPendingActionService_ApproveCategorization(t *testing.T) {
 		var svc ports.PendingActionService = app.NewPendingActionService(actionRepo, txRepo, catRepo, nil, nil, nil)
 
 		// Validation & lookup checks
-		_, err := svc.Approve(ctx, uuid.Nil, uuid.New(), userID)
-		require.ErrorIs(t, err, domain.ErrInvalidID)
-		_, err = svc.Approve(ctx, tenantID, uuid.Nil, userID)
-		require.ErrorIs(t, err, domain.ErrInvalidID)
-		_, err = svc.Approve(ctx, tenantID, uuid.New(), userID)
-		require.ErrorIs(t, err, domain.ErrNotFound)
+		_, appErr := svc.Approve(ctx, uuid.Nil, uuid.New(), userID)
+		require.ErrorIs(t, appErr, domain.ErrInvalidID)
+		_, appErr = svc.Approve(ctx, tenantID, uuid.Nil, userID)
+		require.ErrorIs(t, appErr, domain.ErrInvalidID)
+		_, appErr = svc.Approve(ctx, tenantID, uuid.New(), userID)
+		require.ErrorIs(t, appErr, domain.ErrNotFound)
 
 		// Corrupt payload stays PENDING
 		corruptAct, cErr := domain.NewPendingAction(tenantID, "mcp", domain.ActionTypeCategorizeTransaction, map[string]any{
@@ -972,8 +972,8 @@ func TestPendingActionService_ApproveCategorization(t *testing.T) {
 		})
 		require.NoError(t, cErr)
 		require.NoError(t, actionRepo.Save(ctx, corruptAct))
-		_, err = svc.Approve(ctx, tenantID, corruptAct.ID, userID)
-		require.ErrorIs(t, err, domain.ErrInvalidPendingActionPayload)
+		_, appErr = svc.Approve(ctx, tenantID, corruptAct.ID, userID)
+		require.ErrorIs(t, appErr, domain.ErrInvalidPendingActionPayload)
 		stillPending, _ := actionRepo.FindByID(ctx, tenantID, corruptAct.ID)
 		require.Equal(t, domain.ActionStatusPending, stillPending.Status)
 
@@ -985,8 +985,8 @@ func TestPendingActionService_ApproveCategorization(t *testing.T) {
 		})
 		require.NoError(t, mErr)
 		require.NoError(t, actionRepo.Save(ctx, missingTxAct))
-		_, err = svc.Approve(ctx, tenantID, missingTxAct.ID, userID)
-		require.ErrorIs(t, err, domain.ErrNotFound)
+		_, appErr = svc.Approve(ctx, tenantID, missingTxAct.ID, userID)
+		require.ErrorIs(t, appErr, domain.ErrNotFound)
 		stillPending, _ = actionRepo.FindByID(ctx, tenantID, missingTxAct.ID)
 		require.Equal(t, domain.ActionStatusPending, stillPending.Status)
 
@@ -996,8 +996,8 @@ func TestPendingActionService_ApproveCategorization(t *testing.T) {
 		})
 		require.NoError(t, pErr)
 		txRepo.updateErr = errors.New("db write failed")
-		_, err = svc.Approve(ctx, tenantID, proposed.ID, userID)
-		require.ErrorContains(t, err, "db write failed")
+		_, appErr = svc.Approve(ctx, tenantID, proposed.ID, userID)
+		require.ErrorContains(t, appErr, "db write failed")
 		txRepo.updateErr = nil
 		stillPending, findErr := actionRepo.FindByID(ctx, tenantID, proposed.ID)
 		require.NoError(t, findErr)
@@ -1005,8 +1005,8 @@ func TestPendingActionService_ApproveCategorization(t *testing.T) {
 
 		// UpdateDecision failure leaves action PENDING
 		actionRepo.updateDecErr = errors.New("decision error")
-		_, err = svc.Approve(ctx, tenantID, proposed.ID, userID)
-		require.ErrorContains(t, err, "decision error")
+		_, appErr = svc.Approve(ctx, tenantID, proposed.ID, userID)
+		require.ErrorContains(t, appErr, "decision error")
 		actionRepo.updateDecErr = nil
 		stillPending, findErr = actionRepo.FindByID(ctx, tenantID, proposed.ID)
 		require.NoError(t, findErr)
@@ -1016,18 +1016,18 @@ func TestPendingActionService_ApproveCategorization(t *testing.T) {
 		voidedTx := *tx
 		voidedTx.Void()
 		require.NoError(t, txRepo.Update(ctx, &voidedTx))
-		_, err = svc.Approve(ctx, tenantID, proposed.ID, userID)
-		require.ErrorIs(t, err, domain.ErrInvalidStatus)
+		_, appErr = svc.Approve(ctx, tenantID, proposed.ID, userID)
+		require.ErrorIs(t, appErr, domain.ErrInvalidStatus)
 		stillPending, findErr = actionRepo.FindByID(ctx, tenantID, proposed.ID)
 		require.NoError(t, findErr)
 		require.Equal(t, domain.ActionStatusPending, stillPending.Status)
 
 		// Restore completed transaction, let approval succeed, then verify re-approving returns ErrPendingActionNotPending
 		require.NoError(t, txRepo.Update(ctx, tx))
-		_, err = svc.Approve(ctx, tenantID, proposed.ID, userID)
-		require.NoError(t, err)
-		_, err = svc.Approve(ctx, tenantID, proposed.ID, userID)
-		require.ErrorIs(t, err, domain.ErrPendingActionNotPending)
+		_, appErr = svc.Approve(ctx, tenantID, proposed.ID, userID)
+		require.NoError(t, appErr)
+		_, appErr = svc.Approve(ctx, tenantID, proposed.ID, userID)
+		require.ErrorIs(t, appErr, domain.ErrPendingActionNotPending)
 	})
 }
 
@@ -1281,39 +1281,125 @@ func TestPendingActionService_ApproveTransferReconciliationAndUnsupported(t *tes
 		persisted, _ = actionRepo.FindByID(ctx, tenantID, act.ID)
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
-		// 4. Invoice belongs to a different card account than inflowTx.AccountID
+		// 4. Invoice belongs to a different card account than DestinationAccountID (fails pre-flight before ConfirmTransfer)
 		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
 		wrongCardInv := *inv
 		wrongCardInv.AccountID = uuid.New()
 		require.NoError(t, invRepo.Save(ctx, &wrongCardInv))
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorIs(t, err, domain.ErrInvalidPendingActionPayload)
+		require.Equal(t, 0, transferSvc.calls)
 		persisted, _ = actionRepo.FindByID(ctx, tenantID, act.ID)
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
-		// 5. Missing invoice
+		// 5. Missing invoice (fails pre-flight before ConfirmTransfer)
 		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
 		delete(invRepo.invoices, inv.ID)
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorIs(t, err, domain.ErrNotFound)
+		require.Equal(t, 0, transferSvc.calls)
 		persisted, _ = actionRepo.FindByID(ctx, tenantID, act.ID)
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
-		// 6. Invoice ListByAccount error during liability sync leaves action PENDING
+		// 6. Invoice ListByAccount error during pre-flight aborts before ConfirmTransfer
 		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
 		invRepo.listErr = errors.New("list invoices failed")
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "list invoices failed")
+		require.Equal(t, 0, transferSvc.calls)
 		persisted, _ = actionRepo.FindByID(ctx, tenantID, act.ID)
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
 
-		// 7. Account GetByID error leaves action PENDING
+		// 7. Account GetByID error during pre-flight aborts before ConfirmTransfer
 		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, _, inv = setup()
 		accRepo.getErr = errors.New("account lookup failed")
 		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
 		require.ErrorContains(t, err, "account lookup failed")
+		require.Equal(t, 0, transferSvc.calls)
 		persisted, _ = actionRepo.FindByID(ctx, tenantID, act.ID)
 		require.Equal(t, domain.ActionStatusPending, persisted.Status)
+
+		// 8. Missing card account or nil invoice/account repo fails pre-flight before ConfirmTransfer
+		actionRepo, _, accRepo, invRepo, transferSvc, svc, act, cardAcc, inv := setup()
+		delete(accRepo.accounts, cardAcc.ID)
+		_, err = svc.Approve(ctx, tenantID, act.ID, userID)
+		require.ErrorIs(t, err, domain.ErrNotFound)
+		require.Equal(t, 0, transferSvc.calls)
+		persisted, _ = actionRepo.FindByID(ctx, tenantID, act.ID)
+		require.Equal(t, domain.ActionStatusPending, persisted.Status)
+
+		svcMissingRepos := app.NewPendingActionService(actionRepo, nil, nil, nil, nil, transferSvc)
+		_, err = svcMissingRepos.Approve(ctx, tenantID, act.ID, userID)
+		require.ErrorContains(t, err, "invoice and account repositories are required")
+		require.Equal(t, 0, transferSvc.calls)
+
+		// 9. Post-confirm inflowTx account mismatch when proposal DestinationAccountID is nil
+		actionRepo, txRepo, accRepo, invRepo, transferSvc, _, _, cardAcc, inv := setup()
+		otherCardAcc, _ := domain.NewAccount(tenantID, userID, "Other Card", domain.AccountTypeCreditCard, "BRL", domain.VisibilityShared)
+		require.NoError(t, accRepo.Create(ctx, otherCardAcc))
+		otherCheckingAcc, _ := domain.NewAccount(tenantID, userID, "Other Checking", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
+		require.NoError(t, accRepo.Create(ctx, otherCheckingAcc))
+		outTx, _ := domain.NewTransaction(domain.NewTransactionParams{
+			TenantID: tenantID, AccountID: otherCheckingAcc.ID, CreatedByUserID: &userID,
+			Date: time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC), Amount: decimal.RequireFromString("-400.00"),
+			Description: "Fatura", Type: domain.TransactionTypeExpense, Status: domain.TransactionStatusCompleted,
+		})
+		mismatchedInTx, _ := domain.NewTransaction(domain.NewTransactionParams{
+			TenantID: tenantID, AccountID: otherCardAcc.ID, CreatedByUserID: &userID,
+			Date: time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC), Amount: decimal.RequireFromString("400.00"),
+			Description: "Pagamento recebido", Type: domain.TransactionTypeIncome, Status: domain.TransactionStatusCompleted,
+		})
+		require.NoError(t, txRepo.Create(ctx, outTx))
+		require.NoError(t, txRepo.Create(ctx, mismatchedInTx))
+		svcNoDest := app.NewPendingActionService(actionRepo, txRepo, nil, accRepo, invRepo, transferSvc)
+		noDestAct, ndErr := svcNoDest.ProposeTransferReconciliation(ctx, tenantID, "rec", domain.ReconcileTransferProposal{
+			OutflowTransactionID: outTx.ID,
+			InflowTransactionID:  mismatchedInTx.ID,
+			Amount:               decimal.RequireFromString("400.00"),
+			SourceAccountID:      otherCheckingAcc.ID,
+			ReconciliationType:   domain.ReconciliationTypeBillPayment,
+			InvoiceID:            &inv.ID,
+		})
+		require.NoError(t, ndErr)
+		_, err = svcNoDest.Approve(ctx, tenantID, noDestAct.ID, userID)
+		require.ErrorIs(t, err, domain.ErrInvalidPendingActionPayload)
+		require.Equal(t, 1, transferSvc.calls)
+		persisted, _ = actionRepo.FindByID(ctx, tenantID, noDestAct.ID)
+		require.Equal(t, domain.ActionStatusPending, persisted.Status)
+
+		// 10. Post-confirm reloads liquidAcc when outflowTx.AccountID differs from proposal.SourceAccountID
+		inValidCardTx, _ := domain.NewTransaction(domain.NewTransactionParams{
+			TenantID: tenantID, AccountID: cardAcc.ID, CreatedByUserID: &userID,
+			Date: time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC), Amount: decimal.RequireFromString("400.00"),
+			Description: "Pagamento recebido", Type: domain.TransactionTypeIncome, Status: domain.TransactionStatusCompleted,
+		})
+		require.NoError(t, txRepo.Create(ctx, inValidCardTx))
+		altCheckingAcc, _ := domain.NewAccount(tenantID, userID, "Actual Liquid Account", domain.AccountTypeChecking, "BRL", domain.VisibilityShared)
+		require.NoError(t, accRepo.Create(ctx, altCheckingAcc))
+		altOutTx, _ := domain.NewTransaction(domain.NewTransactionParams{
+			TenantID: tenantID, AccountID: altCheckingAcc.ID, CreatedByUserID: &userID,
+			Date: time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC), Amount: decimal.RequireFromString("-400.00"),
+			Description: "Fatura", Type: domain.TransactionTypeExpense, Status: domain.TransactionStatusCompleted,
+		})
+		require.NoError(t, txRepo.Create(ctx, altOutTx))
+		transferSvc.calls = 0
+		reloadAct, rlErr := svcNoDest.ProposeTransferReconciliation(ctx, tenantID, "rec", domain.ReconcileTransferProposal{
+			OutflowTransactionID: altOutTx.ID,
+			InflowTransactionID:  inValidCardTx.ID,
+			Amount:               decimal.RequireFromString("400.00"),
+			SourceAccountID:      otherCheckingAcc.ID, // differs from altOutTx.AccountID
+			DestinationAccountID: cardAcc.ID,
+			ReconciliationType:   domain.ReconciliationTypeBillPayment,
+			InvoiceID:            &inv.ID,
+		})
+		require.NoError(t, rlErr)
+		approvedReload, rlAppErr := svcNoDest.Approve(ctx, tenantID, reloadAct.ID, userID)
+		require.NoError(t, rlAppErr)
+		require.Equal(t, domain.ActionStatusExecuted, approvedReload.Status)
+		settledReloadInv, fErr := invRepo.FindByID(ctx, tenantID, inv.ID)
+		require.NoError(t, fErr)
+		require.Equal(t, altCheckingAcc.ID.String(), settledReloadInv.Metadata["payment_account_id"])
+		require.Equal(t, "Actual Liquid Account", settledReloadInv.Metadata["payment_account_name"])
 	})
 
 	t.Run("rejects unsupported action types with ErrUnsupportedPendingActionType and keeps them PENDING", func(t *testing.T) {

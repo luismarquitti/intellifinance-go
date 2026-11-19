@@ -108,6 +108,10 @@ func IsRepresentableInCents(d decimal.Decimal) bool {
 	return d.Truncate(2).Equal(d)
 }
 
+func isValidConfidence(d decimal.Decimal) bool {
+	return !d.IsNegative() && !d.GreaterThan(decimal.NewFromInt(1))
+}
+
 // ComputeFingerprint calculates a deterministic SHA-256 idempotency fingerprint for a transaction.
 // Deprecated: use GenerateTransactionFingerprint instead.
 func ComputeFingerprint(
@@ -290,10 +294,8 @@ func (t *Transaction) Validate() error {
 	}
 
 	// AI Confidence validation
-	if t.AIConfidence != nil {
-		if t.AIConfidence.IsNegative() || t.AIConfidence.GreaterThan(decimal.NewFromInt(1)) {
-			return ErrInvalidAmount
-		}
+	if t.AIConfidence != nil && !isValidConfidence(*t.AIConfidence) {
+		return ErrInvalidAmount
 	}
 
 	return nil
@@ -304,7 +306,7 @@ func (t *Transaction) AssignCategory(categoryID uuid.UUID, confidence *decimal.D
 	if categoryID == uuid.Nil {
 		return ErrInvalidID
 	}
-	if confidence != nil && (confidence.IsNegative() || confidence.GreaterThan(decimal.NewFromInt(1))) {
+	if confidence != nil && !isValidConfidence(*confidence) {
 		return ErrInvalidAmount
 	}
 
@@ -341,7 +343,7 @@ func (t *Transaction) ApplyApprovedCategorization(categoryID uuid.UUID, confiden
 	if t.Type == TransactionTypeTransfer {
 		return ErrInvalidTransactionType
 	}
-	if confidence != nil && (confidence.IsNegative() || confidence.GreaterThan(decimal.NewFromInt(1))) {
+	if confidence != nil && !isValidConfidence(*confidence) {
 		return ErrInvalidAmount
 	}
 

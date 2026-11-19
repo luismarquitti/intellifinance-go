@@ -86,14 +86,8 @@ func (s *PendingActionService) ProposeCategorization(
 	if s == nil || s.actionRepo == nil {
 		return nil, errors.New("pending action repository is required")
 	}
-	if proposal.TransactionID == uuid.Nil {
-		return nil, fmt.Errorf("%w: transaction_id: %w", domain.ErrInvalidPendingActionPayload, domain.ErrInvalidID)
-	}
-	if proposal.CategoryID == uuid.Nil {
-		return nil, fmt.Errorf("%w: category_id: %w", domain.ErrInvalidPendingActionPayload, domain.ErrInvalidID)
-	}
-	if proposal.Confidence.IsNegative() || proposal.Confidence.GreaterThan(decimal.NewFromInt(1)) {
-		return nil, fmt.Errorf("%w: confidence must be between 0 and 1", domain.ErrInvalidPendingActionPayload)
+	if hdrErr := proposal.ValidateHeader(); hdrErr != nil {
+		return nil, hdrErr
 	}
 	if !proposal.NeedsHydration() {
 		if valErr := proposal.Validate(); valErr != nil {
@@ -136,26 +130,14 @@ func (s *PendingActionService) hydrateCategorizationProposal(
 		return domain.CategorizeTransactionProposal{}, errors.New("transaction and category repositories are required to hydrate categorization proposal")
 	}
 
-	tx, txErr := s.txRepo.GetByID(ctx, tenantID, proposal.TransactionID)
+	tx, txErr := s.loadTransaction(ctx, tenantID, proposal.TransactionID)
 	if txErr != nil {
-		return domain.CategorizeTransactionProposal{}, fmt.Errorf("failed loading transaction %s: %w", proposal.TransactionID, txErr)
-	}
-	if tx == nil {
-		return domain.CategorizeTransactionProposal{}, fmt.Errorf("transaction %s: %w", proposal.TransactionID, domain.ErrNotFound)
-	}
-	if tx.TenantID != uuid.Nil && tx.TenantID != tenantID {
-		return domain.CategorizeTransactionProposal{}, domain.ErrUnauthorized
+		return domain.CategorizeTransactionProposal{}, txErr
 	}
 
-	cat, catErr := s.catRepo.GetByID(ctx, tenantID, proposal.CategoryID)
+	cat, catErr := s.loadCategory(ctx, tenantID, proposal.CategoryID)
 	if catErr != nil {
-		return domain.CategorizeTransactionProposal{}, fmt.Errorf("failed loading category %s: %w", proposal.CategoryID, catErr)
-	}
-	if cat == nil {
-		return domain.CategorizeTransactionProposal{}, fmt.Errorf("category %s: %w", proposal.CategoryID, domain.ErrNotFound)
-	}
-	if cat.TenantID != uuid.Nil && cat.TenantID != tenantID {
-		return domain.CategorizeTransactionProposal{}, domain.ErrUnauthorized
+		return domain.CategorizeTransactionProposal{}, catErr
 	}
 
 	return domain.NewCategorizeProposalFromEntities(tx, cat, proposal.Confidence, proposal.Reason)
@@ -220,16 +202,13 @@ func (s *PendingActionService) loadAction(
 	}
 
 	action, err := s.actionRepo.FindByID(ctx, tenantID, actionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed loading pending action %s: %w", actionID, err)
-	}
-	if action == nil {
-		return nil, domain.ErrNotFound
-	}
-	if action.TenantID != uuid.Nil && action.TenantID != tenantID {
-		return nil, domain.ErrUnauthorized
-	}
-	return action, nil
+	return ensureLoadedEntity(
+		action,
+		err,
+		func(a *domain.PendingAction) uuid.UUID { return a.TenantID },
+		tenantID,
+		fmt.Sprintf("pending action %s", actionID),
+	)
 }
 
 func (s *PendingActionService) approveLoadedAction(
@@ -238,14 +217,8 @@ func (s *PendingActionService) approveLoadedAction(
 	action *domain.PendingAction,
 	decidedBy uuid.UUID,
 ) (*domain.PendingAction, error) {
-	if action == nil {
-		return nil, domain.ErrNotFound
-	}
-	if action.TenantID != uuid.Nil && action.TenantID != tenantID {
-		return nil, domain.ErrUnauthorized
-	}
-	if action.Status != domain.ActionStatusPending {
-		return nil, domain.ErrPendingActionNotPending
+	if valErr := validatePendingActionForDecision(action, tenantID); valErr != nil {
+		return nil, valErr
 	}
 
 	if execErr := s.executeAction(ctx, tenantID, action); execErr != nil {
@@ -284,6 +257,11 @@ func (s *PendingActionService) executeAction(
 	}
 }
 
+type invoiceSettlementPreflight struct {
+	inv       *domain.CreditCardInvoice
+	liquidAcc *domain.Account
+}
+
 func (s *PendingActionService) executeReconcileTransfer(
 	ctx context.Context,
 	tenantID uuid.UUID,
@@ -297,6 +275,15 @@ func (s *PendingActionService) executeReconcileTransfer(
 		return errors.New("transfer service is required")
 	}
 
+	var preflight invoiceSettlementPreflight
+	if proposal.InvoiceID != nil {
+		var preErr error
+		preflight, preErr = s.preflightInvoiceSettlement(ctx, tenantID, proposal)
+		if preErr != nil {
+			return preErr
+		}
+	}
+
 	outflowTx, inflowTx, confErr := s.transferService.ConfirmTransfer(
 		ctx,
 		tenantID,
@@ -308,30 +295,64 @@ func (s *PendingActionService) executeReconcileTransfer(
 	}
 
 	if proposal.InvoiceID != nil {
-		return s.settleReconciledInvoice(ctx, tenantID, proposal, outflowTx, inflowTx)
+		return s.settleReconciledInvoice(ctx, tenantID, proposal, preflight, outflowTx, inflowTx)
 	}
 	return nil
+}
+
+func (s *PendingActionService) preflightInvoiceSettlement(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	proposal domain.ReconcileTransferProposal,
+) (invoiceSettlementPreflight, error) {
+	if s.invoiceRepo == nil || s.accountRepo == nil {
+		return invoiceSettlementPreflight{}, errors.New("invoice and account repositories are required for invoice settlement")
+	}
+
+	inv, invErr := s.loadInvoice(ctx, tenantID, *proposal.InvoiceID)
+	if invErr != nil {
+		return invoiceSettlementPreflight{}, invErr
+	}
+	if proposal.DestinationAccountID != uuid.Nil && inv.AccountID != proposal.DestinationAccountID {
+		return invoiceSettlementPreflight{}, fmt.Errorf("%w: invoice account %s does not match destination account %s", domain.ErrInvalidPendingActionPayload, inv.AccountID, proposal.DestinationAccountID)
+	}
+
+	var liquidAcc *domain.Account
+	if proposal.SourceAccountID != uuid.Nil {
+		var accErr error
+		liquidAcc, accErr = s.loadAccount(ctx, tenantID, proposal.SourceAccountID, "source account")
+		if accErr != nil {
+			return invoiceSettlementPreflight{}, accErr
+		}
+	}
+
+	if _, cardErr := s.loadAccount(ctx, tenantID, inv.AccountID, "credit card account"); cardErr != nil {
+		return invoiceSettlementPreflight{}, cardErr
+	}
+	if _, listErr := s.invoiceRepo.ListByAccount(ctx, tenantID, inv.AccountID); listErr != nil {
+		return invoiceSettlementPreflight{}, fmt.Errorf("failed listing invoices for credit card account %s: %w", inv.AccountID, listErr)
+	}
+
+	return invoiceSettlementPreflight{
+		inv:       inv,
+		liquidAcc: liquidAcc,
+	}, nil
 }
 
 func (s *PendingActionService) settleReconciledInvoice(
 	ctx context.Context,
 	tenantID uuid.UUID,
 	proposal domain.ReconcileTransferProposal,
+	preflight invoiceSettlementPreflight,
 	outflowTx, inflowTx *domain.Transaction,
 ) error {
-	if s.invoiceRepo == nil || s.accountRepo == nil {
-		return errors.New("invoice and account repositories are required for invoice settlement")
-	}
-
-	inv, invErr := s.invoiceRepo.FindByID(ctx, tenantID, *proposal.InvoiceID)
-	if invErr != nil {
-		return fmt.Errorf("failed loading invoice %s: %w", *proposal.InvoiceID, invErr)
-	}
+	inv := preflight.inv
 	if inv == nil {
-		return fmt.Errorf("invoice %s: %w", *proposal.InvoiceID, domain.ErrNotFound)
-	}
-	if inv.TenantID != uuid.Nil && inv.TenantID != tenantID {
-		return domain.ErrUnauthorized
+		var invErr error
+		inv, invErr = s.loadInvoice(ctx, tenantID, *proposal.InvoiceID)
+		if invErr != nil {
+			return invErr
+		}
 	}
 	if inflowTx != nil && inflowTx.AccountID != uuid.Nil && inv.AccountID != inflowTx.AccountID {
 		return fmt.Errorf("%w: invoice account %s does not match inflow account %s", domain.ErrInvalidPendingActionPayload, inv.AccountID, inflowTx.AccountID)
@@ -348,15 +369,13 @@ func (s *PendingActionService) settleReconciledInvoice(
 		return fmt.Errorf("%w: source_account_id: %w", domain.ErrInvalidPendingActionPayload, domain.ErrInvalidID)
 	}
 
-	liquidAcc, accErr := s.accountRepo.GetByID(ctx, tenantID, sourceAccID)
-	if accErr != nil {
-		return fmt.Errorf("failed loading source account %s: %w", sourceAccID, accErr)
-	}
-	if liquidAcc == nil {
-		return fmt.Errorf("source account %s: %w", sourceAccID, domain.ErrNotFound)
-	}
-	if liquidAcc.TenantID != uuid.Nil && liquidAcc.TenantID != tenantID {
-		return domain.ErrUnauthorized
+	liquidAcc := preflight.liquidAcc
+	if liquidAcc == nil || sourceAccID != proposal.SourceAccountID {
+		var accErr error
+		liquidAcc, accErr = s.loadAccount(ctx, tenantID, sourceAccID, "source account")
+		if accErr != nil {
+			return accErr
+		}
 	}
 
 	paidAt := resolveSettlementPaidAt(outflowTx, proposal.OutflowDate)
@@ -371,15 +390,9 @@ func (s *PendingActionService) settleReconciledInvoice(
 		return fmt.Errorf("failed saving settled invoice %s: %w", inv.ID, saveErr)
 	}
 
-	cardAcc, cardErr := s.accountRepo.GetByID(ctx, tenantID, inv.AccountID)
+	cardAcc, cardErr := s.loadAccount(ctx, tenantID, inv.AccountID, "credit card account")
 	if cardErr != nil {
-		return fmt.Errorf("failed loading credit card account %s: %w", inv.AccountID, cardErr)
-	}
-	if cardAcc == nil {
-		return fmt.Errorf("credit card account %s: %w", inv.AccountID, domain.ErrNotFound)
-	}
-	if cardAcc.TenantID != uuid.Nil && cardAcc.TenantID != tenantID {
-		return domain.ErrUnauthorized
+		return cardErr
 	}
 
 	cardInvoices, listErr := s.invoiceRepo.ListByAccount(ctx, tenantID, inv.AccountID)
@@ -421,15 +434,9 @@ func (s *PendingActionService) executeCategorization(
 		return errors.New("transaction repository is required")
 	}
 
-	tx, getErr := s.txRepo.GetByID(ctx, tenantID, proposal.TransactionID)
+	tx, getErr := s.loadTransaction(ctx, tenantID, proposal.TransactionID)
 	if getErr != nil {
-		return fmt.Errorf("failed loading transaction %s: %w", proposal.TransactionID, getErr)
-	}
-	if tx == nil {
-		return fmt.Errorf("transaction %s: %w", proposal.TransactionID, domain.ErrNotFound)
-	}
-	if tx.TenantID != uuid.Nil && tx.TenantID != tenantID {
-		return domain.ErrUnauthorized
+		return getErr
 	}
 
 	var confPtr *decimal.Decimal
@@ -478,14 +485,8 @@ func (s *PendingActionService) rejectLoadedAction(
 	decidedBy uuid.UUID,
 	reason string,
 ) (*domain.PendingAction, error) {
-	if action == nil {
-		return nil, domain.ErrNotFound
-	}
-	if action.TenantID != uuid.Nil && action.TenantID != tenantID {
-		return nil, domain.ErrUnauthorized
-	}
-	if action.Status != domain.ActionStatusPending {
-		return nil, domain.ErrPendingActionNotPending
+	if valErr := validatePendingActionForDecision(action, tenantID); valErr != nil {
+		return nil, valErr
 	}
 
 	trimmedReason := strings.TrimSpace(reason)
@@ -561,4 +562,95 @@ func (s *PendingActionService) runBatchDecision(
 	}
 
 	return result, nil
+}
+
+func (s *PendingActionService) loadTransaction(ctx context.Context, tenantID, txID uuid.UUID) (*domain.Transaction, error) {
+	tx, err := s.txRepo.GetByID(ctx, tenantID, txID)
+	return ensureLoadedEntity(
+		tx,
+		err,
+		func(t *domain.Transaction) uuid.UUID { return t.TenantID },
+		tenantID,
+		fmt.Sprintf("transaction %s", txID),
+	)
+}
+
+func (s *PendingActionService) loadCategory(ctx context.Context, tenantID, catID uuid.UUID) (*domain.Category, error) {
+	cat, err := s.catRepo.GetByID(ctx, tenantID, catID)
+	return ensureLoadedEntity(
+		cat,
+		err,
+		func(c *domain.Category) uuid.UUID { return c.TenantID },
+		tenantID,
+		fmt.Sprintf("category %s", catID),
+	)
+}
+
+func (s *PendingActionService) loadInvoice(ctx context.Context, tenantID, invoiceID uuid.UUID) (*domain.CreditCardInvoice, error) {
+	inv, err := s.invoiceRepo.FindByID(ctx, tenantID, invoiceID)
+	return ensureLoadedEntity(
+		inv,
+		err,
+		func(i *domain.CreditCardInvoice) uuid.UUID { return i.TenantID },
+		tenantID,
+		fmt.Sprintf("invoice %s", invoiceID),
+	)
+}
+
+func (s *PendingActionService) loadAccount(ctx context.Context, tenantID, accountID uuid.UUID, role string) (*domain.Account, error) {
+	acc, err := s.accountRepo.GetByID(ctx, tenantID, accountID)
+	return ensureLoadedEntity(
+		acc,
+		err,
+		func(a *domain.Account) uuid.UUID { return a.TenantID },
+		tenantID,
+		fmt.Sprintf("%s %s", role, accountID),
+	)
+}
+
+func validatePendingActionForDecision(action *domain.PendingAction, tenantID uuid.UUID) error {
+	var entityTenantID uuid.UUID
+	if action != nil {
+		entityTenantID = action.TenantID
+	}
+	if err := ensureTenantEntity(action == nil, entityTenantID, tenantID, ""); err != nil {
+		return err
+	}
+	if action.Status != domain.ActionStatusPending {
+		return domain.ErrPendingActionNotPending
+	}
+	return nil
+}
+
+func ensureLoadedEntity[T any](
+	entity *T,
+	loadErr error,
+	tenantIDOf func(*T) uuid.UUID,
+	expectedTenantID uuid.UUID,
+	label string,
+) (*T, error) {
+	if loadErr != nil {
+		return nil, fmt.Errorf("failed loading %s: %w", label, loadErr)
+	}
+	var entityTenantID uuid.UUID
+	if entity != nil {
+		entityTenantID = tenantIDOf(entity)
+	}
+	if err := ensureTenantEntity(entity == nil, entityTenantID, expectedTenantID, label); err != nil {
+		return nil, err
+	}
+	return entity, nil
+}
+
+func ensureTenantEntity(isNil bool, entityTenantID, expectedTenantID uuid.UUID, label string) error {
+	if isNil {
+		if label == "" {
+			return domain.ErrNotFound
+		}
+		return fmt.Errorf("%s: %w", label, domain.ErrNotFound)
+	}
+	if entityTenantID != uuid.Nil && entityTenantID != expectedTenantID {
+		return domain.ErrUnauthorized
+	}
+	return nil
 }
